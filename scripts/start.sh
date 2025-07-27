@@ -935,7 +935,11 @@ cn_ipv6_route() { #CN-IPV6绕过
 	}
 }
 start_ipt_route() { #iptables-route通用工具
-	#$1:iptables/ip6tables	$2:所在的表(nat/mangle) $3:所在的链(OUTPUT/PREROUTING)	$4:新创建的shellcrash链表	$5:tcp/udp/all
+	#$1:iptables/ip6tables
+	# $2:所在的表(nat/mangle)
+	# $3:所在的链(OUTPUT/PREROUTING)
+	# $4:新创建的shellcrash链表
+	# $5:tcp/udp/all
 	#区分ipv4/ipv6
 	[ "$1" = 'iptables' ] && {
 		RESERVED_IP=$reserve_ipv4
@@ -1426,7 +1430,7 @@ start_firewall() { #路由规则总入口
 	getlanip          #获取局域网host地址
 	#设置策略路由
 	[ "$firewall_area" != 4 ] && {
-		local table=100
+		local table=80
 		[ "$redir_mod" = "Tproxy模式" ] && ip route add local default dev lo table $table 2>/dev/null
 		[ "$redir_mod" = "Tun模式" -o "$redir_mod" = "混合模式" ] && {
 			i=1
@@ -1589,8 +1593,8 @@ stop_firewall() { #还原防火墙配置
 		/etc/init.d/dnsmasq restart >/dev/null 2>&1
 	}
 	#清理路由规则
-	ip rule del fwmark $fwmark table 100 2>/dev/null
-	ip route flush table 100 2>/dev/null
+	ip rule del fwmark $fwmark table 80 2>/dev/null
+	ip route flush table 80 2>/dev/null
 	ip -6 rule del fwmark $fwmark table 101 2>/dev/null
 	ip -6 route flush table 101 2>/dev/null
 	#重置nftables相关规则

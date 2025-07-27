@@ -88,7 +88,7 @@ ckstatus() {
 			[ "$day" = "0" ] && day='' || day="$day天"
 			time=$(date -u -d @${time} +%H小时%M分%S秒)
 		fi
-	elif [ "$firewall_area" = 5 ] && [ -n "$(ip route list table 100)" ]; then
+	elif [ "$firewall_area" = 5 ] && [ -n "$(ip route list table 80)" ]; then
 		run="\033[32m已设置（$redir_mod）\033[0m"
 	else
 		run="\033[31m没有运行（$redir_mod）\033[0m"
