@@ -1595,8 +1595,8 @@ stop_firewall() { #还原防火墙配置
 	#清理路由规则
 	ip rule del fwmark $fwmark table 80 2>/dev/null
 	ip route flush table 80 2>/dev/null
-	ip -6 rule del fwmark $fwmark table 101 2>/dev/null
-	ip -6 route flush table 101 2>/dev/null
+	ip -6 rule del fwmark $fwmark table 81 2>/dev/null
+	ip -6 route flush table 81 2>/dev/null
 	#重置nftables相关规则
 	ckcmd nft && {
 		nft flush table inet shellcrash >/dev/null 2>&1
