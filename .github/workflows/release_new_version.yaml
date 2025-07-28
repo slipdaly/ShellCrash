@@ -65,7 +65,7 @@ jobs:
       run: |
         mkdir artifacts
         cp ./bin/clashfm.tar.gz ./artifacts/
-        cp ./bin/ShellClash.tar.gz ./artifacts/
+        cp ./bin/ShellCrash.tar.gz ./artifacts/
         echo "artifact_name=${new_type}_${new_version}_$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
     - name: Upload Test Artifact
       uses: actions/upload-artifact@main
