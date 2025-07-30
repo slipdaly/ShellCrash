@@ -522,6 +522,9 @@ EOF
 			IFS="$oldIFS"
 		done
 	}
+	if grep -q 'anti-ad' "$CRASHDIR"/yamls/others.yaml 2>/dev/null ; then
+	  line_num=$(grep -n -m 1 -v "全球直连" "$TMPDIR"/rules.yaml | cut -d: -f1) && [ -n "$line_num" ] && sed -i "${line_num}i\  - RULE-SET,anti-ad,🛑 广告拦截" "$TMPDIR"/rules.yaml
+	fi
 	#节点绕过功能支持
 	sed -i "/#节点绕过/d" "$TMPDIR"/rules.yaml
 	[ "$proxies_bypass" = "已启用" ] && {
