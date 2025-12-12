@@ -1828,8 +1828,14 @@ getdb(){ #下载Dashboard文件
 		[ $? -ne 0 ] && echo "文件解压失败！" && rm -rf ${TMPDIR}/clashfm.tar.gz && exit 1
 		#修改默认host和端口
 		if [ "$db_type" = "clashdb" -o "$db_type" = "meta_db" -o "$db_type" = "meta_xd" -o "$db_type" = "zashboard" ];then
-			sed -i "s/127.0.0.1/${host}/g" $dbdir/assets/*.js
-			sed -i "s/9090/${db_port}/g" $dbdir/assets/*.js
+			[ -d "$dbdir/assets" ] && {
+				sed -i "s/127.0.0.1/${host}/g" $dbdir/assets/*.js
+				sed -i "s/9090/${db_port}/g" $dbdir/assets/*.js
+			}
+			[ -d "$dbdir/_nuxt" ] && {
+      	sed -i "s/127.0.0.1/${host}/g" $dbdir/_nuxt/*.js
+      	sed -i "s/9090/${db_port}/g" $dbdir/_nuxt/*.js
+      }
 		else
 			sed -i "s/127.0.0.1:9090/${host}:${db_port}/g" $dbdir/*.html
 			#sed -i "s/7892/${db_port}/g" $dbdir/app*.js
