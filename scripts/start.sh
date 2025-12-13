@@ -2173,7 +2173,6 @@ webget)
         *)
           compressed_cmd=''
           compressed_header=''
-          echo "字符串不以 https://subapi.cmliussss.net 开头"
           ;;
       esac
     fi
