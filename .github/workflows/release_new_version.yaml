@@ -30,6 +30,7 @@ jobs:
         elif [[ "${new_type}" == "公测版" ]]; then
           sed -i "s/versionsh=.*/versionsh=${new_version}/" ./bin/version
           sed -i "s/version=.*/version=${new_version}/" ./scripts/init.sh
+          echo "${new_version}" ./version
         fi
     - name: Package
       if: ${{ github.event.inputs.release_type != '正式版' }}
