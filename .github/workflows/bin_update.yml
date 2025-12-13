@@ -13,7 +13,7 @@ jobs:
     - name: Checkout update branch (ignore if missing)
       uses: actions/checkout@v5
       with:
-        repository: slipdaly/ShellCrash
+        ref: update
         fetch-depth: 1
         persist-credentials: false   # 禁用默认凭据（我们用 token push）
 
