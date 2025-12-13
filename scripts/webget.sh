@@ -2132,11 +2132,8 @@ setserver(){
 #检查更新
 checkupdate(){
 	${CRASHDIR}/start.sh get_bin ${TMPDIR}/version_new bin/version echooff
-	[ "$?" = "0" ] && {
-		version_new=$(cat ${TMPDIR}/version_new | grep -oE 'versionsh=.*' | awk -F'=' '{ print $2 }')
-		${CRASHDIR}/start.sh get_bin ${TMPDIR}/version_new bin/version echooff
-	}
-	if [ "$?" = "0" ];then
+	[ "$?" = "0" ] && version_new=$(cat ${TMPDIR}/version_new | grep -oE 'versionsh=.*' | awk -F'=' '{ print $2 }')
+	if [ -n "$version_new" ];then
 		. ${TMPDIR}/version_new 2>/dev/null
 	else
 		echo -e "\033[31m检查更新失败！请尝试切换其他安装源！\033[0m"
