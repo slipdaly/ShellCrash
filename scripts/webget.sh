@@ -1824,10 +1824,6 @@ getdb(){ #下载Dashboard文件
 				sed -i "s/127.0.0.1/${host}/g" $dbdir/assets/*.js
 				sed -i "s/9090/${db_port}/g" $dbdir/assets/*.js
 			}
-			[ -d "$dbdir/_nuxt" ] && {
-      	sed -i "s/127.0.0.1/${host}/g" $dbdir/_nuxt/*.js
-      	sed -i "s/9090/${db_port}/g" $dbdir/_nuxt/*.js
-      }
 		elif [ "$db_type" = "meta_xd" ];then
 			sed -i "s/127.0.0.1:9090/${host}:${db_port}/g" $dbdir/_nuxt/*.js
 		else
