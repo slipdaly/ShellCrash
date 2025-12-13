@@ -51,14 +51,9 @@ getconfig() { #读取配置及全局变量
 	ckcmd iptables && iptables -h | grep -q '\-w' && iptable='iptables -w' || iptable=iptables
 	ckcmd ip6tables && ip6tables -h | grep -q '\-w' && ip6table='ip6tables -w' || ip6table=ip6tables
 	#默认dns
-	[ -z "$dns_nameserver" ] && {
-		if [ -n "$(pidof dnsmasq)" ];then
-			dns_nameserver='127.0.0.1'
-		else
-			dns_nameserver='180.184.1.1, 1.2.4.8'
-		fi
-	}
-	[ -z "$dns_fallback" ] && dns_fallback="$dns_nameserver"
+	[ -z "$dns_nameserver" ] && dns_nameserver='180.184.1.1, 1.2.4.8'
+	[ -z "$dns_fallback" ] && dns_fallback="1.1.1.1, 8.8.8.8"
+	[ -z "$dns_resolver" ] && dns_resolver="223.5.5.5, 2400:3200::1"
 	#自动生成ua
 	[ -z "$user_agent" -o "$user_agent" = "auto" ] && {
 		if echo "$crashcore" | grep -q 'singbox';then
@@ -74,7 +69,11 @@ getconfig() { #读取配置及全局变量
 setconfig() { #脚本配置工具
 	#参数1代表变量名，参数2代表变量值,参数3即文件路径
 	[ -z "$3" ] && configpath="$CRASHDIR"/configs/ShellCrash.cfg || configpath="${3}"
-	grep -q "${1}=" "$configpath" && sed -i "s#${1}=.*#${1}=${2}#g" "$configpath" || sed -i "\$a\\${1}=${2}" $configpath
+	if grep -q "^${1}=" "$configpath";then
+		sed -i "s#${1}=.*#${1}=${2}#g" "$configpath"
+	else
+		printf '%s=%s\n' "$1" "$2" >> "$configpath"
+	fi
 }
 ckcmd() { #检查命令是否存在
 	command -v sh >/dev/null 2>&1 && command -v "$1" >/dev/null 2>&1 || type "$1" >/dev/null 2>&1
@@ -207,9 +206,10 @@ put_save() { #推送面板选择
 	fi
 }
 get_bin() { #专用于项目内部文件的下载
-	. "$CRASHDIR"/configs/ShellCrash.cfg >/dev/null
 	[ -z "$update_url" ] && update_url=https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@master
 	if [ -n "$url_id" ]; then
+		echo "$2" | grep -q '^bin/' && release_type=update #/bin文件改为在update分支下载
+		echo "$2" | grep -q '^public/' && release_type=dev #/public文件改为在dev分支下载
 		[ -z "$release_type" ] && release_type=master
 		if [ "$url_id" = 101 -o "$url_id" = 104 ]; then
 			url="$(grep "$url_id" "$CRASHDIR"/configs/servers.list | awk '{print $3}')@$release_type/$2" #jsdelivr特殊处理
@@ -411,38 +411,39 @@ modify_yaml() { #修饰clash配置文件
 	}
 	#dns配置
 	[ -z "$(cat "$CRASHDIR"/yamls/user.yaml 2>/dev/null | grep '^dns:')" ] && {
-		default_nameserver='223.5.5.5' 
-		[ "$crashcore" = 'meta' ] && default_nameserver='https://223.5.5.5/dns-query' 
+		[ "$crashcore" != meta ] && dns_resolver='223.5.5.5'
 		cat >"$TMPDIR"/dns.yaml <<EOF
 dns:
   enable: true
   listen: :$dns_port
   use-hosts: true
   ipv6: $dns_v6
-  default-nameserver: [ $default_nameserver ]
+  default-nameserver: [ $dns_resolver ]
   enhanced-mode: fake-ip
   fake-ip-range: 28.0.0.1/8
   fake-ip-range6: fc00::/16
   fake-ip-filter:
 EOF
-		if [ "$dns_mod" != "redir_host" ]; then
+		if [ "$dns_mod" = "mix" ] || [ "$dns_mod" = "fake-ip" ];then
 			cat "$CRASHDIR"/configs/fake_ip_filter "$CRASHDIR"/configs/fake_ip_filter.list 2>/dev/null | grep -v '#' | sed "s/^/    - '/" | sed "s/$/'/" >>"$TMPDIR"/dns.yaml
-			[ "$dns_mod" = "mix" ] && {
-				#插入过滤规则
-				cat >>"$TMPDIR"/dns.yaml <<EOF
-    - "rule-set:cn"
-EOF
-			}
 		else
 			echo "    - '+.*'" >>"$TMPDIR"/dns.yaml #使用fake-ip模拟redir_host
 		fi
-		cat >>"$TMPDIR"/dns.yaml <<EOF
-  nameserver: [$dns_nameserver]
+		#mix模式fakeip绕过cn
+		[ "$dns_mod" = "mix" ] && echo '    - "rule-set:cn"' >>"$TMPDIR"/dns.yaml
+		#mix模式和route模式插入分流设置
+		if [ "$dns_mod" = "mix" ] || [ "$dns_mod" = "route" ];then
+			cat >>"$TMPDIR"/dns.yaml <<EOF
+  respect-rules: true
+  nameserver-policy: {'rule-set:cn': [ $dns_nameserver ]}
+  proxy-server-nameserver : [ $dns_resolver ]
+  nameserver: [ $dns_fallback ]
 EOF
-		# [ -s "$CRASHDIR"/configs/fallback_filter.list ] && {
-			# echo "    domain:" >>"$TMPDIR"/dns.yaml
-			# cat "$CRASHDIR"/configs/fallback_filter.list | grep -v '#' | sed "s/^/      - '/" | sed "s/$/'/" >>"$TMPDIR"/dns.yaml
-		# }
+		else
+			cat >>"$TMPDIR"/dns.yaml <<EOF
+  nameserver: [ $dns_nameserver ]
+EOF
+		fi
 	}
 	#域名嗅探配置
 	[ "$sniffer" = "已启用" ] && [ "$crashcore" = "meta" ] && sniffer_set="sniffer: {enable: true, parse-pure-ip: true, skip-domain: [Mijia Cloud], sniff: {http: {ports: [80, 8080-8880], override-destination: true}, tls: {ports: [443, 8443]}, quic: {ports: [443, 8443]}}}"
@@ -574,7 +575,7 @@ EOF
 	[ "$dns_mod" = "mix" ] && ! grep -q 'cn:' "$TMPDIR"/rule-providers.yaml && ! grep -q '^rule-providers' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && {
 		space=$(sed -n "1p" "$TMPDIR"/rule-providers.yaml | grep -oE '^ *')                               #获取空格数
 		[ -z "$space" ] && space='  '
-		echo "${space}cn: {type: http, behavior: domain, format: mrs, path: ./ruleset/cn.mrs, url: https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@dev/bin/geodata/mrs_geosite_cn.mrs}" >> "$TMPDIR"/rule-providers.yaml 
+		echo "${space}cn: {type: http, behavior: domain, format: mrs, path: ./ruleset/cn.mrs, url: https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@update/bin/geodata/mrs_geosite_cn.mrs}" >> "$TMPDIR"/rule-providers.yaml 
 }
 	#对齐rules中的空格
 	sed -i 's/^ *-/ -/g' "$TMPDIR"/rules.yaml
@@ -613,7 +614,7 @@ EOF
 		sed -i "/#自定义/d" "$TMPDIR"/config.yaml
 	fi
 	#建立软连接
-	[ ""$TMPDIR"" = ""$BINDIR"" ] || ln -sf "$TMPDIR"/config.yaml "$BINDIR"/config.yaml
+	[ ""$TMPDIR"" = ""$BINDIR"" ] || ln -sf "$TMPDIR"/config.yaml "$BINDIR"/config.yaml 2>/dev/null || cp -f "$TMPDIR"/config.yaml "$BINDIR"/config.yaml
 	#清理缓存
 	for char in $yaml_char set set_bak dns hosts; do
 		rm -f "$TMPDIR"/${char}.yaml
@@ -678,6 +679,10 @@ EOF
 	dns_proxy=$(echo $dns_proxy_1st | sed 's|.*://||' | sed 's|/.*||')
 	dns_proxy_type=$(echo "$dns_proxy_1st" | awk -F '://' '{print $1}')
 	[ "$dns_proxy_type" = "$dns_proxy" ] && dns_proxy_type="udp"
+	dns_resolver_1st=$(echo $dns_resolver | awk -F ',' '{print $1}')
+	dns_resolverip=$(echo $dns_resolver_1st | sed 's|.*://||' | sed 's|/.*||')
+	dns_resolver_type=$(echo "$dns_resolver_1st" | awk -F '://' '{print $1}')
+	[ "$dns_resolver_type" = "$dns_resolverip" ] && dns_resolver_type="udp"
 	[ "$ipv6_dns" = "已开启" ] && strategy='prefer_ipv4' || strategy='ipv4_only'
 	#获取detour出口
 	auto_detour=$(grep -E '"type": "urltest"' -A 1 "$TMPDIR"/jsons/outbounds.json | grep '"tag":' | head -n 1 | sed 's/^[[:space:]]*"tag": //;s/,$//' )
@@ -686,9 +691,9 @@ EOF
 	#根据dns模式生成
 	[ "$dns_mod" = "redir_host" ] && {
 		global_dns=dns_proxy
-		direct_dns="{ \"inbound\": [ \"dns-in\" ], \"server\": \"dns_direct\" },"
+		direct_dns="{ \"inbound\": [ \"dns-in\" ], \"server\": \"dns_direct\" }"
 	}
-	[ "$dns_mod" = "fake-ip" ] && {
+	[ "$dns_mod" = "fake-ip" ] || [ "$dns_mod" = "mix" ] && {
 		global_dns=dns_fakeip
 		fake_ip_filter_domain=$(cat ${CRASHDIR}/configs/fake_ip_filter ${CRASHDIR}/configs/fake_ip_filter.list 2>/dev/null | grep -Ev '#|\*|\+|Mijia' | sed '/^\s*$/d' | awk '{printf "\"%s\", ",$1}' | sed 's/, $//')
 		fake_ip_filter_suffix=$(cat ${CRASHDIR}/configs/fake_ip_filter ${CRASHDIR}/configs/fake_ip_filter.list 2>/dev/null | grep -v '.\*' | grep -E '\*|\+' | sed 's/^[*+]\.//' | awk '{printf "\"%s\", ",$1}' | sed 's/, $//')
@@ -696,33 +701,31 @@ EOF
 		[ -n "$fake_ip_filter_domain" ] && fake_ip_filter_domain="{ \"domain\": [$fake_ip_filter_domain], \"server\": \"dns_direct\" },"
 		[ -n "$fake_ip_filter_suffix" ] && fake_ip_filter_suffix="{ \"domain_suffix\": [$fake_ip_filter_suffix], \"server\": \"dns_direct\" },"
 		[ -n "$fake_ip_filter_regex" ] && fake_ip_filter_regex="{ \"domain_regex\": [$fake_ip_filter_regex], \"server\": \"dns_direct\" },"
+		proxy_dns='{ "query_type": ["A", "AAAA"], "server": "dns_fakeip", "strategy": "'"$strategy"'", "rewrite_ttl": 1 }'
+		#mix模式插入fakeip过滤规则
+		[ "$dns_mod" = "mix" ] && direct_dns="{ \"rule_set\": [\"cn\"], \"server\": \"dns_direct\" },"
 	}
-	[ "$dns_mod" = "mix" ] && {
-		global_dns=dns_fakeip
-		fake_ip_filter_domain=$(cat ${CRASHDIR}/configs/fake_ip_filter ${CRASHDIR}/configs/fake_ip_filter.list 2>/dev/null | grep -Ev '#|\*|\+|Mijia' | sed '/^\s*$/d' | awk '{printf "\"%s\", ",$1}' | sed 's/, $//')
-		fake_ip_filter_suffix=$(cat ${CRASHDIR}/configs/fake_ip_filter ${CRASHDIR}/configs/fake_ip_filter.list 2>/dev/null | grep -v '.\*' | grep -E '\*|\+' | sed 's/^[*+]\.//' | awk '{printf "\"%s\", ",$1}' | sed 's/, $//')
-		fake_ip_filter_regex=$(cat ${CRASHDIR}/configs/fake_ip_filter ${CRASHDIR}/configs/fake_ip_filter.list 2>/dev/null | grep '.\*' | sed 's/^*/.\*/' | sed 's/^+/.\+/' | awk '{printf "\"%s\", ",$1}' | sed 's/, $//')
-		[ -n "$fake_ip_filter_domain" ] && fake_ip_filter_domain="{ \"domain\": [$fake_ip_filter_domain], \"server\": \"dns_direct\" },"
-		[ -n "$fake_ip_filter_suffix" ] && fake_ip_filter_suffix="{ \"domain_suffix\": [$fake_ip_filter_suffix], \"server\": \"dns_direct\" },"
-		[ -n "$fake_ip_filter_regex" ] && fake_ip_filter_regex="{ \"domain_regex\": [$fake_ip_filter_regex], \"server\": \"dns_direct\" },"
-		direct_dns="{ \"rule_set\": [\"cn\"], \"server\": \"dns_direct\" },"
+	[ "$dns_mod" = "route" ] && {
+		global_dns=dns_proxy
+		direct_dns="{ \"rule_set\": [\"cn\"], \"server\": \"dns_direct\" }"
+	}
 		#生成add_rule_set.json
-		[ -z "$(cat "$CRASHDIR"/jsons/*.json | grep -Ei '"tag" *: *"cn"')" ] && cat >"$TMPDIR"/jsons/add_rule_set.json <<EOF
+		[ "$dns_mod" = "mix" ] || [ "$dns_mod" = "route" ] && \
+		[ -z "$(cat "$CRASHDIR"/jsons/*.json | grep -Ei '"tag" *: *"cn"')" ] && \
+		cat >"$TMPDIR"/jsons/add_rule_set.json <<EOF
 {
   "route": {
     "rule_set": [
       {
         "tag": "cn",
         "type": "remote",
-        "format": "binary",
         "path": "./ruleset/cn.srs",
-        "url": "https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@dev/bin/geodata/srs_geosite_cn.srs"
+        "url": "https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@update/bin/geodata/srs_geosite_cn.srs"
       }
     ]
   }
 }
 EOF
-	}
 	cat >"$TMPDIR"/jsons/dns.json <<EOF
 {
   "dns": {
@@ -750,8 +753,8 @@ EOF
       },
       {
         "tag": "dns_resolver",
-        "type": "https",
-        "server": "223.5.5.5",
+        "type": "$dns_resolver_type",
+        "server": "$dns_resolverip",
 		"routing_mark": $routing_mark
       }
     ],
@@ -764,7 +767,6 @@ EOF
 	  { "clash_mode": "Global", "query_type": ["A", "AAAA"], "server": "$global_dns", "strategy": "$strategy", "rewrite_ttl": 1 },
       $direct_dns
 	  $proxy_dns
-      { "query_type": ["A", "AAAA"], "server": "dns_fakeip", "strategy": "$strategy", "rewrite_ttl": 1 }
     ],
     "final": "dns_proxy",
 	"strategy": "$strategy",
@@ -1062,8 +1064,8 @@ start_ipt_route() { #iptables-route通用工具
 		fi
 		#将所在链指定流量指向shellcrash表
 		$1 $w -t $2 -I $3 -p $5 $ports -j $4
-		[ "$dns_mod" != "redir_host" ] && [ "$common_ports" = "已开启" ] && [ "$1" = iptables ] && $1 $w -t $2 -I $3 -p $5 -d 28.0.0.1/8 -j $4
-		[ "$dns_mod" != "redir_host" ] && [ "$common_ports" = "已开启" ] && [ "$1" = ip6tables ] && $1 $w -t $2 -I $3 -p $5 -d fc00::/16 -j $4
+		[ "$dns_mod" = "mix" -o "$dns_mod" = "fake-ip" ] && [ "$common_ports" = "已开启" ] && [ "$1" = iptables ] && $1 $w -t $2 -I $3 -p $5 -d 28.0.0.1/8 -j $4
+		[ "$dns_mod" = "mix" -o "$dns_mod" = "fake-ip" ] && [ "$common_ports" = "已开启" ] && [ "$1" = ip6tables ] && $1 $w -t $2 -I $3 -p $5 -d fc00::/16 -j $4
 	}
 	[ "$5" = "tcp" -o "$5" = "all" ] && proxy_set $1 $2 $3 $4 tcp
 	[ "$5" = "udp" -o "$5" = "all" ] && proxy_set $1 $2 $3 $4 udp
@@ -1286,6 +1288,7 @@ start_nft_route() { #nftables-route通用工具
 	[ "$1" = 'prerouting_vm' ] && HOST_IP="$(echo $vm_ipv4 | sed 's/ /, /g')"
 	#添加新链
 	nft add chain inet shellcrash $1 { type $3 hook $2 priority $4 \; }
+	[ "$1" = 'prerouting_vm' ] && nft add rule inet shellcrash $1 ip saddr != {$HOST_IP} return #仅代理虚拟机流量
 	#过滤dns
 	nft add rule inet shellcrash $1 tcp dport 53 return
 	nft add rule inet shellcrash $1 udp dport 53 return
@@ -2044,7 +2047,8 @@ start)
 			systemctl start shellcrash.service || start_error
 		}
 	elif rc-status -r >/dev/null 2>&1; then
-		rc-service shellcrash start >/dev/null 2>&1
+		rc-service shellcrash stop >/dev/null 2>&1
+		rc-service shellcrash start
 	else
 		bfstart && start_old
 	fi
@@ -2210,7 +2214,7 @@ webget)
 	[ "$result" = "200" ] && exit 0 || exit 1
 	;;
 *)
-	$1 $2 $3 $4 $5 $6 $7
+	"$1" "$2" "$3" "$4" "$5" "$6" "$7"
 	;;
 
 esac

@@ -9,16 +9,20 @@ CFG_PATH=${CRASHDIR}/configs/ShellCrash.cfg
 YAMLSDIR=${CRASHDIR}/yamls
 JSONSDIR=${CRASHDIR}/jsons
 #加载执行目录，失败则初始化
-source ${CRASHDIR}/configs/command.env 2>/dev/null
-[ -z "$BINDIR" -o -z "$TMPDIR" -o -z "$COMMAND" ] && source ${CRASHDIR}/init.sh >/dev/null 2>&1
+. ${CRASHDIR}/configs/command.env 2>/dev/null
+[ -z "$BINDIR" -o -z "$TMPDIR" -o -z "$COMMAND" ] && . ${CRASHDIR}/init.sh >/dev/null 2>&1
 [ ! -f ${TMPDIR} ] && mkdir -p ${TMPDIR}
 [ -n "$(tar --help 2>&1 | grep -o 'no-same-owner')" ] && tar_para='--no-same-owner' #tar命令兼容
 
 #读取配置相关
 setconfig() {
 	#参数1代表变量名，参数2代表变量值,参数3即文件路径
-	[ -z "$3" ] && configpath=${CFG_PATH} || configpath="${3}"
-	grep -q "${1}=" "$configpath" && sed -i "s#${1}=.*#${1}=${2}#g" $configpath || sed -i "\$a\\${1}=${2}" $configpath
+	[ -z "$3" ] && configpath="$CRASHDIR"/configs/ShellCrash.cfg || configpath="${3}"
+	if grep -q "^${1}=" "$configpath";then
+		sed -i "s#${1}=.*#${1}=${2}#g" "$configpath"
+	else
+		printf '%s=%s\n' "$1" "$2" >> "$configpath"
+	fi
 }
 ckcmd() {
 	command -v sh >/dev/null 2>&1 && command -v $1 >/dev/null 2>&1 || type $1 >/dev/null 2>&1
@@ -29,9 +33,9 @@ ckstatus() {
 	#检查/读取脚本配置文件
 	if [ -f $CFG_PATH ]; then
 		[ -n "$(awk 'a[$0]++' $CFG_PATH)" ] && awk '!a[$0]++' $CFG_PATH >$CFG_PATH #检查重复行并去除
-		source $CFG_PATH 2>/dev/null
+		. $CFG_PATH 2>/dev/null
 	else
-		source ${CRASHDIR}/init.sh >/dev/null 2>&1
+		. ${CRASHDIR}/init.sh >/dev/null 2>&1
 	fi
 	versionsh=$(cat ${CRASHDIR}/init.sh | grep -E ^version= | head -n 1 | sed 's/version=//')
 	[ -n "$versionsh" ] && versionsh_l=$versionsh
@@ -112,7 +116,7 @@ ckstatus() {
 	#检查新手引导
 	if [ -z "$userguide" ]; then
 		setconfig userguide 1
-		source ${CRASHDIR}/webget.sh && userguide
+		. ${CRASHDIR}/webget.sh && userguide
 	fi
 	#检查执行权限
 	[ ! -x ${CRASHDIR}/start.sh ] && chmod +x ${CRASHDIR}/start.sh
@@ -126,7 +130,7 @@ ckstatus() {
 			core_v=$(/tmp/$file -v 2>/dev/null | head -n 1 | sed 's/ linux.*//;s/.* //')
 			[ -z "$core_v" ] && core_v=$(/tmp/$file version 2>/dev/null | grep -Eo 'version .*' | sed 's/version //')
 			if [ -n "$core_v" ]; then
-				source ${CRASHDIR}/webget.sh && setcoretype &&
+				. ${CRASHDIR}/webget.sh && setcoretype &&
 					mv -f /tmp/$file ${TMPDIR}/CrashCore &&
 					tar -zcf ${BINDIR}/CrashCore.tar.gz ${tar_para} -C ${TMPDIR} CrashCore &&
 					echo -e "\033[32m内核加载完成！\033[0m " &&
@@ -193,7 +197,7 @@ start_core() {
 		echo -e "\033[33m没有找到${crashcore}配置文件，尝试生成providers配置文件！\033[0m"
 		[ "$crashcore" = singboxr ] && coretype=singbox
 		[ "$crashcore" = meta -o "$crashcore" = clashpre ] && coretype=clash
-		source ${CRASHDIR}/webget.sh && gen_${coretype}_providers
+		. ${CRASHDIR}/webget.sh && gen_${coretype}_providers
 	elif [ -s $core_config -o -n "$Url" -o -n "$Https" ]; then
 		${CRASHDIR}/start.sh start
 		#设置循环检测以判定服务启动是否成功
@@ -210,7 +214,7 @@ start_core() {
 		[ -n "$test" -o -n "$(pidof CrashCore)" ] && startover
 	else
 		echo -e "\033[31m没有找到${crashcore}配置文件，请先导入配置文件！\033[0m"
-		source ${CRASHDIR}/webget.sh && set_core_config
+		. ${CRASHDIR}/webget.sh && set_core_config
 	fi
 }
 start_service() {
@@ -546,7 +550,7 @@ log_pusher() { #日志菜单
 	esac
 }
 setport() { #端口设置
-	source $CFG_PATH >/dev/null
+	. $CFG_PATH >/dev/null
 	[ -z "$secret" ] && secret=未设置
 	[ -z "$table" ] && table=100
 	[ -z "$authentication" ] && auth=未设置 || auth=******
@@ -572,7 +576,7 @@ setport() { #端口设置
 	echo -----------------------------------------------
 	echo -e " 1 修改Http/Sock5端口：	\033[36m$mix_port\033[0m"
 	echo -e " 2 设置Http/Sock5密码：	\033[36m$auth\033[0m"
-	echo -e " 3 修改静态路由端口：	\033[36m$redir_port\033[0m"
+	echo -e " 3 修改Redir/Tproxy端口：\033[36m$redir_port,$((redir_port + 1))\033[0m"
 	echo -e " 4 修改DNS监听端口：	\033[36m$dns_port\033[0m"
 	echo -e " 5 修改面板访问端口：	\033[36m$db_port\033[0m"
 	echo -e " 6 设置面板访问密码：	\033[36m$secret\033[0m"
@@ -607,7 +611,7 @@ setport() { #端口设置
 			else
 				authentication=$(echo $input | grep :)
 				if [ -n "$authentication" ]; then
-					setconfig authentication \'$authentication\'
+					setconfig authentication "'$authentication'"
 					echo -e "\033[32m设置成功！！！\033[0m"
 				else
 					echo -e "\033[31m输入有误，请重新输入！\033[0m"
@@ -645,7 +649,7 @@ setport() { #端口设置
 		echo -----------------------------------------------
 		read -p "请输入需要指定代理的端口 > " multiport
 		if [ -n "$multiport" ]; then
-			[ "$multiport" = "0" ] && multiport=""
+			[ "$multiport" = "0" ] && multiport="22,80,143,194,443,465,587,853,993,995,5222,8080,8443"
 			common_ports=已开启
 			setconfig multiport $multiport
 			setconfig common_ports $common_ports
@@ -692,71 +696,83 @@ setport() { #端口设置
 }
 setdns() { #DNS详细设置
 	[ -z "$dns_nameserver" ] && dns_nameserver='180.184.1.1, 1.2.4.8'
-	[ -z "$dns_fallback" ] && dns_fallback="$dns_nameserver"
+	[ -z "$dns_fallback" ] && dns_fallback="1.1.1.1, 8.8.8.8"
+	[ -z "$dns_resolver" ] && dns_resolver="223.5.5.5, 2400:3200::1"
 	[ -z "$hosts_opt" ] && hosts_opt=已启用
 	[ -z "$dns_redir" ] && dns_redir=未开启
 	[ -z "$dns_no" ] && dns_no=未禁用
 	echo -----------------------------------------------
 	echo -e "当前基础DNS：\033[32m$dns_nameserver\033[0m"
 	echo -e "PROXY-DNS：\033[36m$dns_fallback\033[0m"
+	echo -e "解析DNS：\033[33m$dns_resolver\033[0m"
 	echo -e "多个DNS地址请用\033[30;47m“|”\033[0m或者\033[30;47m“, ”\033[0m分隔输入"
 	echo -e "\033[33m必须拥有本地根证书文件才能使用dot/doh类型的加密dns\033[0m"
-	echo -e "\033[33m注意singbox内核只有首个dns会被加载！\033[0m"
+	echo -e "\033[31m注意singbox内核只有首个dns会被加载！\033[0m"
 	echo -----------------------------------------------
 	echo -e " 1 修改\033[32m基础DNS\033[0m"
-	echo -e " 2 修改\033[36mPROXY-DNS\033[0m"
-	echo -e " 3 \033[33m重置\033[0m默认DNS配置"
+	echo -e " 2 修改\033[36mPROXY-DNS\033[0m(该DNS查询会经过节点)"
+	echo -e " 3 修改\033[33m解析DNS\033[0m(必须是IP,用于解析其他DNS)"
 	echo -e " 4 一键配置\033[32m加密DNS\033[0m"
 	echo -e " 5 hosts优化：  	\033[36m$hosts_opt\033[0m	————调用本机hosts并劫持NTP服务"
 	echo -e " 6 Dnsmasq转发：	\033[36m$dns_redir\033[0m	————不推荐使用"
 	echo -e " 7 禁用DNS劫持：	\033[36m$dns_no\033[0m	————搭配第三方DNS使用"
+	echo -e " 9 \033[33m重置\033[0m默认DNS配置"
 	echo -e " 0 返回上级菜单"
 	echo -----------------------------------------------
 	read -p "请输入对应数字 > " num
-	if [ -z "$num" ]; then
-		errornum
-	elif [ "$num" = 1 ]; then
+	case "$num" in
+	0)
+	;;
+	1)
 		read -p "请输入新的DNS > " dns_nameserver
 		dns_nameserver=$(echo $dns_nameserver | sed 's#|#\,\ #g')
 		if [ -n "$dns_nameserver" ]; then
-			setconfig dns_nameserver \'"$dns_nameserver"\'
+			setconfig dns_nameserver "'$dns_nameserver'"
 			echo -e "\033[32m设置成功！！！\033[0m"
 		fi
+		sleep 1
 		setdns
-
-	elif [ "$num" = 2 ]; then
+	;;
+	2)
 		read -p "请输入新的DNS > " dns_fallback
 		dns_fallback=$(echo $dns_fallback | sed 's/|/\,\ /g')
 		if [ -n "$dns_fallback" ]; then
-			setconfig dns_fallback \'"$dns_fallback"\'
+			setconfig dns_fallback "'$dns_fallback'"
 			echo -e "\033[32m设置成功！！！\033[0m"
 		fi
+		sleep 1
 		setdns
-
-	elif [ "$num" = 3 ]; then
-		dns_nameserver=""
-		dns_fallback=""
-		setconfig dns_nameserver
-		setconfig dns_fallback
-		echo -e "\033[33mDNS配置已重置！！！\033[0m"
+	;;
+	3)
+		read -p "请输入新的DNS > " text
+		if echo "$text" | grep -qE '://.*::'; then
+			echo -e "\033[31m此选项暂不支持ipv6加密DNS！！！\033[0m"
+		elif [ -n "$text" ]; then
+			dns_resolver=$(echo $text | sed 's/|/\,\ /g')
+			setconfig dns_resolver "'$dns_resolver'"
+			echo -e "\033[32m设置成功！！！\033[0m"
+		fi
+		sleep 1
 		setdns
-
-	elif [ "$num" = 4 ]; then
+	;;
+	4)
 		echo -----------------------------------------------
 		openssldir="$(openssl version -d 2>&1 | awk -F '"' '{print $2}')"
 		if [ -s "$openssldir/certs/ca-certificates.crt" -o -s "/etc/ssl/certs/ca-certificates.crt" ]; then
 			dns_nameserver='https://doh.360.cn/dns-query, https://dns.alidns.com/dns-query, https://doh.pub/dns-query'
 			dns_fallback='https://cloudflare-dns.com/dns-query, https://dns.google/dns-query, https://doh.opendns.com/dns-query'
-			setconfig dns_nameserver \'"$dns_nameserver"\'
-			setconfig dns_fallback \'"$dns_fallback"\'
+			dns_resolver='https://223.5.5.5/dns-query, 2400:3200::1'
+			setconfig dns_nameserver "'$dns_nameserver'"
+			setconfig dns_fallback "'$dns_fallback'"
+			setconfig dns_resolver "'$dns_resolver'"
 			echo -e "\033[32m已设置加密DNS，如出现DNS解析问题，请尝试重置DNS配置！\033[0m"
 		else
 			echo -e "\033[31m找不到根证书文件，无法启用加密DNS，Linux系统请自行搜索安装OpenSSL的方式！\033[0m"
 		fi
-		sleep 2
+		sleep 1
 		setdns
-
-	elif [ "$num" = 5 ]; then
+	;;
+	5)
 		echo -----------------------------------------------
 		if [ "$hosts_opt" = "已启用" ]; then
 			hosts_opt=未启用
@@ -765,18 +781,17 @@ setdns() { #DNS详细设置
 			hosts_opt=已启用
 			echo -e "\033[33m已启用hosts优化功能！！！\033[0m"
 		fi
-		sleep 1
 		setconfig hosts_opt $hosts_opt
+		sleep 1
 		setdns
-
-	elif [ "$num" = 6 ]; then
+	;;
+	6)
 		echo -----------------------------------------------
 		if [ "$dns_redir" = "未开启" ]; then
 			echo -e "\033[31m将使用OpenWrt中Dnsmasq插件自带的DNS转发功能转发DNS请求至内核！\033[0m"
 			echo -e "\033[33m启用后将禁用本插件自带的iptables转发功能\033[0m"
 			dns_redir=已开启
 			echo -e "\033[32m已启用Dnsmasq转发DNS功能！！！\033[0m"
-			sleep 1
 		else
 			uci del dhcp.@dnsmasq[-1].server
 			uci set dhcp.@dnsmasq[0].noresolv=0
@@ -785,11 +800,11 @@ setdns() { #DNS详细设置
 			echo -e "\033[33m禁用成功！！如有报错请重启设备！\033[0m"
 			dns_redir=未开启
 		fi
-		sleep 1
 		setconfig dns_redir $dns_redir
+		sleep 1
 		setdns
-
-	elif [ "$num" = 7 ]; then
+	;;
+	7)
 		echo -----------------------------------------------
 		if [ "$dns_no" = "未禁用" ]; then
 			echo -e "\033[31m仅限搭配其他DNS服务(比如dnsmasq、smartDNS)时使用！\033[0m"
@@ -799,10 +814,26 @@ setdns() { #DNS详细设置
 			dns_no=未禁用
 			echo -e "\033[33m已启用DNS劫持！！！\033[0m"
 		fi
-		sleep 1
 		setconfig dns_no $dns_no
+		sleep 1
 		setdns
-	fi
+	;;
+	9)
+		dns_nameserver=
+		dns_fallback=
+		dns_resolver=
+		setconfig dns_nameserver
+		setconfig dns_fallback
+		setconfig dns_resolver
+		echo -e "\033[33mDNS配置已重置！！！\033[0m"
+		sleep 1
+		setdns
+	;;
+	*)
+		errornum
+		sleep 1
+	;;
+	esac
 }
 setipv6() { #ipv6设置
 	[ -z "$ipv6_redir" ] && ipv6_redir=未开启
@@ -947,7 +978,7 @@ setfirewall() { #防火墙设置
 		)" ]; then
 			reserve_ipv4="$text"
 			echo -e "已将保留地址网段设为：\033[32m$reserve_ipv4\033[0m"
-			setconfig reserve_ipv4 "\'$reserve_ipv4\'"
+			setconfig reserve_ipv4 "'$reserve_ipv4'"
 		else
 			echo -e "\033[31m输入有误，操作已取消！\033[0m"
 		fi
@@ -960,7 +991,7 @@ setfirewall() { #防火墙设置
 	esac
 }
 checkport() { #自动检查端口冲突
-	for portx in $dns_port $mix_port $redir_port $db_port; do
+	for portx in $dns_port $mix_port $redir_port $((redir_port + 1)) $db_port; do
 		if [ -n "$(netstat -ntul 2>&1 | grep ':$portx ')" ]; then
 			echo -----------------------------------------------
 			echo -e "检测到端口【$portx】被以下进程占用！内核可能无法正常启动！\033[33m"
@@ -968,7 +999,7 @@ checkport() { #自动检查端口冲突
 			echo -e "\033[0m-----------------------------------------------"
 			echo -e "\033[36m请修改默认端口配置！\033[0m"
 			setport
-			source $CFG_PATH >/dev/null
+			. $CFG_PATH >/dev/null
 			checkport
 		fi
 	done
@@ -1401,14 +1432,17 @@ set_firewall_area() { #防火墙模式设置
 		read -p "请输入对应数字 > " num
 		case $num in
 		1)
-			vm_redir=已开启
+			if [ -n "$vm_ipv4" ];then
+				vm_redir=已开启
+			else
+				echo -e "\033[33m请先运行容器再运行脚本或者手动设置网段\033[0m"
+			fi
 			;;
 		2)
 			echo -e "多个网段请用空格连接，可运行容器后使用【ip route】命令查看网段地址"
 			echo -e "示例：\033[32m10.88.0.0/16 172.17.0.0/16\033[0m"
 			read -p "请输入自定义网段 > " text
-			[ -n "$text" ] && vm_ipv4=$text
-			vm_redir=已开启
+			[ -n "$text" ] && vm_ipv4=$text && vm_redir=已开启
 			;;
 		3)
 			vm_redir=未开启
@@ -1417,7 +1451,8 @@ set_firewall_area() { #防火墙模式设置
 		*) ;;
 		esac
 		setconfig vm_redir $vm_redir
-		setconfig vm_ipv4 "\'$vm_ipv4\'"
+		setconfig vm_ipv4 "'$vm_ipv4'"
+		sleep 1
 		set_firewall_area
 		;;
 	*) errornum ;;
@@ -1571,15 +1606,17 @@ set_dns_mod() { #DNS模式设置
 	echo -e "当前DNS运行模式为：\033[47;30m $dns_mod \033[0m"
 	echo -e "\033[33m切换模式后需要手动重启服务以生效！\033[0m"
 	echo -----------------------------------------------
-	echo -e " 1 fake-ip模式：   \033[32m响应速度更快\033[0m"
+	echo -e " 1 fake-ip模式：   响应快，\033[33m兼容性较差\033[0m"
 	echo -e "                   不支持CN-IP绕过功能"
-	echo -e " 2 redir_host模式：\033[32m兼容性更好\033[0m"
-	echo -e "                   需搭配加密DNS使用"
+	echo -e " 2 redir_host模式：\033[33m不安全，易被污染\033[0m"
+	echo -e "                   建议搭配第三方DNS服务使用"
 	if echo "$crashcore" | grep -q 'singbox' || [ "$crashcore" = meta ]; then
-		echo -e " 3 mix混合模式：   \033[32m内部realip外部fakeip\033[0m"
-		echo -e "                   依赖geosite.dat/geosite-cn.srs数据库"
+		echo -e " 3 mix混合模式：   \033[32m防污染防泄露，响应快，推荐！\033[0m"
+		echo -e "                   cn域名realip其他fakeip分流"
+		echo -e " 4 route模式：     \033[32m防污染防泄露，全真实IP\033[0m"
+		echo -e "                   cn域名realip其他dns2proxy分流"
 	fi
-	echo -e " 4 \033[36mDNS进阶设置\033[0m"
+	echo -e " 9 \033[36mDNS进阶设置\033[0m"
 	echo " 0 返回上级菜单"
 	read -p "请输入对应数字 > " num
 	case $num in
@@ -1608,6 +1645,17 @@ set_dns_mod() { #DNS模式设置
 		fi
 		;;
 	4)
+		if echo "$crashcore" | grep -q 'singbox' || [ "$crashcore" = meta ]; then
+			dns_mod=route
+			setconfig dns_mod $dns_mod
+			echo -----------------------------------------------
+			echo -e "\033[36m已设为 $dns_mod 模式！！\033[0m"
+		else
+			echo -e "\033[31m当前内核不支持的功能！！！\033[0m"
+			sleep 1
+		fi
+		;;
+	9)
 		setdns
 		set_dns_mod
 		;;
@@ -1697,6 +1745,7 @@ normal_set() { #基础设置
 
 	elif [ "$num" = 2 ]; then
 		set_dns_mod
+		sleep 1
 		normal_set
 
 	elif [ "$num" = 3 ]; then
@@ -1883,7 +1932,7 @@ advanced_set() { #进阶设置
 			fi
 		elif [ "$num" = 3 ]; then
 			mv -f $CFG_PATH $CFG_PATH.bak
-			source ${CRASHDIR}/init.sh >/dev/null
+			. ${CRASHDIR}/init.sh >/dev/null
 			echo -e "\033[32m脚本设置已重置！(旧文件已备份！)\033[0m"
 		fi
 		echo -e "\033[33m请重新启动脚本！\033[0m"
@@ -2068,10 +2117,10 @@ tools() {
 		i=
 
 	elif [ "$num" = 1 ]; then
-		source ${CRASHDIR}/webget.sh && testcommand
+		. ${CRASHDIR}/webget.sh && testcommand
 
 	elif [ "$num" = 2 ]; then
-		source ${CRASHDIR}/webget.sh && userguide
+		. ${CRASHDIR}/webget.sh && userguide
 
 	elif [ "$num" = 3 ]; then
 		log_pusher
@@ -2203,11 +2252,11 @@ main_menu() {
 		main_menu
 
 	elif [ "$num" = 5 ]; then
-		source ${CRASHDIR}/task/task.sh && task_menu
+		. ${CRASHDIR}/task/task.sh && task_menu
 		main_menu
 
 	elif [ "$num" = 6 ]; then
-		source ${CRASHDIR}/webget.sh && set_core_config
+		. ${CRASHDIR}/webget.sh && set_core_config
 		main_menu
 
 	elif [ "$num" = 7 ]; then
@@ -2225,7 +2274,7 @@ main_menu() {
 
 	elif [ "$num" = 9 ]; then
 		checkcfg=$(cat $CFG_PATH)
-		source ${CRASHDIR}/webget.sh && update
+		. ${CRASHDIR}/webget.sh && update
 		if [ -n "$PID" ]; then
 			checkcfg_new=$(cat $CFG_PATH)
 			[ "$checkcfg" != "$checkcfg_new" ] && checkrestart
@@ -2244,7 +2293,7 @@ main_menu() {
 		cd $(dirname $0)
 		pwd
 	)
-	source ${CRASHDIR}/init.sh
+	. ${CRASHDIR}/init.sh
 	sleep 1
 	echo 请重启SSH窗口以完成初始化！
 	exit
@@ -2280,7 +2329,7 @@ case "$1" in
 	${CRASHDIR}/start.sh $2 $3 $4 $5 $6
 	;;
 -i)
-	source ${CRASHDIR}/init.sh
+	. ${CRASHDIR}/init.sh
 	;;
 -st)
 	shtype=sh && [ -n "$(ls -l /bin/sh | grep -o dash)" ] && shtype=bash

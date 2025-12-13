@@ -6,7 +6,7 @@
 [ -z "$BINDIR" ] && BINDIR=${CRASHDIR}
 CFG_PATH=${CRASHDIR}/configs/ShellCrash.cfg
 TMPDIR=/tmp/ShellCrash && [ ! -f ${TMPDIR} ] && mkdir -p ${TMPDIR}
-source $CFG_PATH >/dev/null 2>&1
+. $CFG_PATH >/dev/null 2>&1
 [ -n "$(tar --help 2>&1|grep -o 'no-same-owner')" ] && tar_para='--no-same-owner' #tar命令兼容
 
 setconfig(){
@@ -20,13 +20,13 @@ ckcmd(){ #检查命令是否存在
 
 #任务命令
 check_update(){ #检查更新工具
-	${CRASHDIR}/start.sh get_bin ${TMPDIR}/crashversion "bin/version" echooff
-	[ "$?" = "0" ] && source ${TMPDIR}/crashversion 2>/dev/null	
+	${CRASHDIR}/start.sh get_bin ${TMPDIR}/crashversion "$1" echooff
+	[ "$?" = "0" ] && . ${TMPDIR}/crashversion 2>/dev/null	
 	rm -rf ${TMPDIR}/crashversion
 }
 update_core(){ #自动更新内核
 	#检查版本
-	check_update
+	check_update bin/version
 	crash_v_new=$(eval echo \$${crashcore}_v)
 	if [ -z "$crash_v_new" -o "$crash_v_new" = "$core_v" ];then
 		logger "任务【自动更新内核】中止-未检测到版本更新"
@@ -88,7 +88,7 @@ update_core(){ #自动更新内核
 }
 update_scripts(){ #自动更新脚本
 	#检查版本
-	check_update
+	check_update version
 	if [ -z "$versionsh" -o "$versionsh" = "versionsh_l" ];then
 		logger "任务【自动更新脚本】中止-未检测到版本更新"
 		exit 1
@@ -109,7 +109,7 @@ update_scripts(){ #自动更新脚本
 				${CRASHDIR}/start.sh start
 				return 1
 			else
-				source ${CRASHDIR}/init.sh >/dev/null
+				. ${CRASHDIR}/init.sh >/dev/null
 				${CRASHDIR}/start.sh start
 				return 0
 			fi		
@@ -119,7 +119,7 @@ update_scripts(){ #自动更新脚本
 update_mmdb(){ #自动更新数据库
 	getgeo(){
 		#检查版本
-		check_update
+		check_update bin/version
 		geo_v="$(echo $2 | awk -F "." '{print $1}')_v" #获取版本号类型比如Country_v
 		geo_v_new=$GeoIP_v
 		geo_v_now=$(eval echo \$$geo_v)
@@ -161,7 +161,8 @@ logger(){
 	[ "$task_push" = 1 ] && push= || push=off
 	[ -n "$2" -a "$2" != 0 ] && echo -e "\033[$2m$1\033[0m"
 	[ "$3" = 'off' ] && push=off
-	${CRASHDIR}/start.sh logger $1 0 $push
+	echo "$1" |grep -qE '(每隔|时每)([1-9]|[1-9][0-9])分钟' && push=off
+	${CRASHDIR}/start.sh logger "$1" 0 "$push"
 }
 croncmd(){
 	if [ -n "$(crontab -h 2>&1 | grep '\-l')" ];then
@@ -321,7 +322,7 @@ task_type(){ #任务条件选择菜单
 	;;
 	1)
 		echo -----------------------------------------------
-		echo -e " 输入  0~6  对应\033[33m每周的指定某天\033[0m运行(0=周日)"
+		echo -e " 输入  1-7  对应\033[33m每周的指定某天\033[0m运行(7=周日)"
 		echo -e " 输入 1,4,0 代表\033[36m每周一、周四、周日\033[0m运行"
 		echo -e " 输入 1-5 代表\033[36m周一至周五\033[0m运行"
 		read -p "在每周哪天执行？ > " week
@@ -329,8 +330,8 @@ task_type(){ #任务条件选择菜单
 		echo -----------------------------------------------
 		read -p "想在该日的具体哪个小时执行？（0-23） > " hour	
 		cron_time="在每周$week的$hour点整"
-		cron_time=`echo ${cron_time/0/日}` #把0换成日
-		set_cron
+		cron_time=`echo ${cron_time/周0/周日}` #把0换成日
+		[ -n "$week" ] && [ -n "$hour" ] && set_cron
 	;;	
 	2)
 		echo -----------------------------------------------
@@ -340,21 +341,21 @@ task_type(){ #任务条件选择菜单
 		echo -----------------------------------------------
 		read -p "想在具体哪分钟执行？（0-59的整数） > " min
 		cron_time="在每日的$hour点$min分"
-		set_cron
+		[ -n "$min" ] && [ -n "$hour" ] && set_cron
 	;;	
 	3)
 		echo -----------------------------------------------
 		read -p "想每隔多少小时执行一次？（1-23的整数） > " num
 		hour="*/$num"
 		cron_time="每隔$num小时"
-		set_cron
+		[ -n "$hour" ] && set_cron
 	;;	
 	4)
 		echo -----------------------------------------------
 		read -p "想每隔多少分钟执行一次？（1-59的整数） > " num
 		min="*/$num"
 		cron_time="每隔$num分钟"
-		set_cron
+		[ -n "$min" ] && set_cron
 	;;
 	5)
 		set_service bfstart "$task_id" "服务启动前$task_name"
@@ -376,7 +377,7 @@ task_type(){ #任务条件选择菜单
 			cron_time="0 */$hour * * *"
 			time_des="$hour小时"
 		fi
-		set_service running "$task_id" "运行时每$time_des$task_name" "$cron_time"
+		[ -n "$cron_time" ] && set_service running "$task_id" "运行时每$time_des$task_name" "$cron_time"
 	;;
 	8)
 		echo -e "该功能会将相关启动代码注入到/etc/init.d/firewall中"

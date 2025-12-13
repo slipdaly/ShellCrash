@@ -1,7 +1,7 @@
 #!/bin/sh
 # Copyright (C) Juewuy
 
-version=1.9.3beta3fix
+version=1.9.3beta5fix
 
 setdir() {
 	dir_avail() {
@@ -145,10 +145,14 @@ setdir() {
 		[ "$res" = "1" ] && CRASHDIR=$dir/ShellCrash || setdir
 	fi
 }
-setconfig() {
+setconfig() { #脚本配置工具
 	#参数1代表变量名，参数2代表变量值,参数3即文件路径
-	[ -z "$3" ] && configpath=${CRASHDIR}/configs/ShellCrash.cfg || configpath="${3}"
-	[ -n "$(grep "${1}=" "$configpath")" ] && sed -i "s#${1}=.*#${1}=${2}#g" $configpath || echo "${1}=${2}" >>$configpath
+	[ -z "$3" ] && configpath="$CRASHDIR"/configs/ShellCrash.cfg || configpath="${3}"
+	if grep -q "^${1}=" "$configpath";then
+		sed -i "s#${1}=.*#${1}=${2}#g" "$configpath"
+	else
+		printf '%s=%s\n' "$1" "$2" >> "$configpath"
+	fi
 }
 #特殊固件识别及标记
 [ -f "/etc/storage/started_script.sh" ] && {
@@ -249,7 +253,7 @@ if [ -n "$profile" ]; then
 	echo "alias crash=\"$shtype $CRASHDIR/menu.sh\"" >>$profile #设置快捷命令环境变量
 	sed -i '/export CRASHDIR=*/'d $profile
 	echo "export CRASHDIR=\"$CRASHDIR\"" >>$profile #设置路径环境变量
-	source $profile >/dev/null 2>&1 || echo 运行错误！请使用bash而不是dash运行安装命令！！！
+	. $profile >/dev/null 2>&1 || echo 运行错误！请使用bash而不是dash运行安装命令！！！
 	#适配zsh环境变量
 	zsh --version >/dev/null 2>&1 && [ -z "$(cat ~/.zshrc 2>/dev/null | grep CRASHDIR)" ] && {
 		sed -i '/alias crash=*/'d ~/.zshrc 2>/dev/null

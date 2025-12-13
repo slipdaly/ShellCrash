@@ -422,6 +422,7 @@ EOF
 	${CRASHDIR}/start.sh core_check && ${TMPDIR}/CrashCore -t -d ${BINDIR} -f ${TMPDIR}/config.yaml
 	if [ "$?" = 0 ];then
 		echo -e "\033[32m配置文件生成成功！\033[0m"
+		mkdir -p ${CRASHDIR}/yamls
 		mv -f ${TMPDIR}/config.yaml ${CRASHDIR}/yamls/config.yaml
 		read -p "是否立即启动/重启服务？(1/0) > " res
 		[ "$res" = 1 ] && {
@@ -523,6 +524,7 @@ EOF
 	${CRASHDIR}/start.sh core_check && ${TMPDIR}/CrashCore merge ${TMPDIR}/config.json -C ${TMPDIR}/providers
 	if [ "$?" = 0 ];then
 		echo -e "\033[32m配置文件生成成功！\033[0m"
+		mkdir -p ${CRASHDIR}/jsons
 		mv -f ${TMPDIR}/config.json ${CRASHDIR}/jsons/config.json
 		rm -rf ${TMPDIR}/providers
 		read -p "是否立即启动/重启服务？(1/0) > " res
@@ -573,10 +575,10 @@ setproviders(){ #自定义providers
 			errornum
 		else
 			echo -----------------------------------------------
-			echo -e " 1 修改代理服务商：\033[36m$provider_name\033[0m"
+			echo -e " 1 修改名称：\033[36m$provider_name\033[0m"
 			echo -e " 2 修改链接地址：\033[32m$provider_url\033[0m"
-			echo -e " 3 生成\033[33m仅包含此服务商\033[0m的配置文件"
-			echo -e " 4 \033[31m移除此服务商\033[0m"
+			echo -e " 3 生成\033[33m仅包含此链接\033[0m的配置文件"
+			echo -e " 4 \033[31m移除此链接\033[0m"
 			echo -----------------------------------------------
 			echo -e " 0 返回上级菜单"
 			read -p "请选择需要执行的操作 > " num
@@ -584,15 +586,15 @@ setproviders(){ #自定义providers
 			0)
 			;;
 			1)
-				read -p "请输入代理服务商的名称或者代称(如有多个服务商不可重复) > " name
-				if [ -n "$name" ] && [ -z "$(grep "$name" $CRASHDIR/configs/providers.cfg)" ];then
+				read -p "请输入名称或者代号(不可重复,不支持纯数字)  > " name
+				if [ -n "$name" ] && [ -z "$(echo "$name" | grep -E '^[0-9]+$')" ] && ! grep -q "$name" $CRASHDIR/configs/providers.cfg;then
 					sed -i "s|$provider_name $provider_url|$name $provider_url|" $CRASHDIR/configs/providers.cfg
 				else
 					echo -e "\033[31m输入错误，请重新输入！\033[0m"
 				fi
 			;;
 			2)
-				read -p "请输入providers订阅地址或本地相对路径 > " link
+				read -p "请输入链接地址或本地相对路径 > " link
 				if [ -n "$(echo $link | grep -E '.*\..*|^\./')" ] && [ -z "$(grep "$link" $CRASHDIR/configs/providers.cfg)" ];then
 					link=$(echo $link | sed 's/\&/\\\&/g') #特殊字符添加转义
 					sed -i "s|$provider_name $provider_url|$provider_name $link|" $CRASHDIR/configs/providers.cfg
@@ -619,14 +621,14 @@ setproviders(){ #自定义providers
 		echo -e "支持填写在线的\033[32mYClash订阅地址\033[0m或者\033[32m本地Clash配置文件\033[0m"
 		echo -e "本地配置文件请放在\033[32m$CRASHDIR\033[0m目录下，并填写相对路径如【\033[32m./providers/test.yaml\033[0m】"
 		echo -----------------------------------------------
-		read -p "请输入providers订阅地址或本地相对路径 > " link
+		read -p "请输入链接地址或本地相对路径 > " link
 		link=$(echo $link | sed 's/ //g') #去空格
 		[ -n "$(echo $link | grep -E '.*\..*|^\./')" ] && {
-			read -p "请输入代理服务商的名称或者代号(不可重复) > " name
+			read -p "请输入名称或代号(不可重复,不支持纯数字) > " name
 			name=$(echo $name | sed 's/ //g')
-			[ -n "$name" ] && [ -z "$(grep "name" $CRASHDIR/configs/providers.cfg)" ] && {
+			[ -n "$name" ] && [ -z "$(echo "$name" | grep -E '^[0-9]+$')" ] && ! grep -q "$name" $CRASHDIR/configs/providers.cfg && {
 				echo -----------------------------------------------
-				echo -e "代理服务商：\033[36m$name\033[0m"
+				echo -e "名称：\033[36m$name\033[0m"
 				echo -e "链接地址/路径：\033[32m$link\033[0m"
 				read -p "确认添加？(1/0) > " res
 					[ "$res" = 1 ] && {
@@ -635,7 +637,7 @@ setproviders(){ #自定义providers
 					}
 			}
 		}
-		[ "$?" != 0 ] && echo -e "\033[31m操作已取消！\033[0m"
+		[ "$?" != 0 ] && echo -e "\033[31m输入错误，操作已取消！\033[0m"
 		sleep 1
 		setproviders
 	;;
@@ -649,7 +651,7 @@ setproviders(){ #自定义providers
 				gen_${coretype}_providers
 			}
 		else
-			echo -e "\033[31m你还未添加providers服务商，请先添加！\033[0m"
+			echo -e "\033[31m你还未添加链接或本地配置文件，请先添加！\033[0m"
 			sleep 1
 		fi
 		setproviders
@@ -690,7 +692,7 @@ setproviders(){ #自定义providers
 		setproviders
 	;;
 	d)
-		read -p "确认清空全部providers服务商？(1/0) > " res
+		read -p "确认清空全部链接？(1/0) > " res
 		[ "$res" = "1" ] && rm -rf $CRASHDIR/configs/providers.cfg
 		setproviders
 	;;
@@ -878,7 +880,7 @@ gen_link_flt(){ #在线生成节点过滤
 		exclude=''
 		echo -e "\033[31m 已删除节点过滤关键字！！！\033[0m"
 	fi
-	setconfig exclude \'$exclude\'
+	setconfig exclude "'$exclude'"
 }
 gen_link_ele(){ #在线生成节点筛选
 	[ -z "$include" ] && include="未设置"
@@ -898,7 +900,7 @@ gen_link_ele(){ #在线生成节点筛选
 		include=''
 		echo -e "\033[31m 已删除节点匹配关键字！！！\033[0m"
 	fi
-	setconfig include \'$include\'
+	setconfig include "'$include'"
 }
 get_core_config(){ #调用工具下载
 	${CRASHDIR}/start.sh get_core_config
@@ -952,7 +954,7 @@ gen_core_config_link(){ #在线生成工具
 				i=100
 				#将用户链接写入配置
 				setconfig Https
-				setconfig Url \'$Url_link\'
+				setconfig Url "'$Url_link'"
 				#获取在线yaml文件
 				get_core_config
 			else
@@ -1006,7 +1008,7 @@ set_core_config_link(){ #直接导入配置
 			if [ "$res" = '1' ]; then
 				#将用户链接写入配置
 				sed -i '/Url=*/'d $CFG_PATH
-				setconfig Https \'$link\'
+				setconfig Https "'$link'"
 				setconfig Url
 				#获取在线yaml文件
 				get_core_config
@@ -1030,13 +1032,13 @@ set_core_config(){ #配置文件功能
 	echo -----------------------------------------------
 	echo -e "\033[30;47m ShellCrash配置文件管理\033[0m"
 	echo -----------------------------------------------
-	echo -e " 1 在线\033[32m生成$crashcore配置文件\033[0m"
+	echo -e " 1 在线\033[32m生成配置文件\033[0m(基于Subconverter订阅转换)"
 	if [ -f "$CRASHDIR"/v2b_api.sh ];then
 		echo -e " 2 登录\033[33m获取订阅(推荐！)\033[0m"
 	else
-		echo -e " 2 在线\033[33m获取完整配置文件\033[0m"
+		echo -e " 2 在线\033[33m获取配置文件\033[0m(基于订阅提供者)"
 	fi
-	echo -e " 3 本地\033[32m生成providers配置文件\033[0m"
+	echo -e " 3 本地\033[32m生成配置文件\033[0m(基于内核providers,推荐！)"
 	echo -e " 4 本地\033[33m上传完整配置文件\033[0m"
 	echo -e " 5 设置\033[36m自动更新\033[0m"
 	echo -e " 6 \033[32m自定义\033[0m配置文件"
@@ -1097,7 +1099,7 @@ set_core_config(){ #配置文件功能
 		exit
 	;;
 	5)
-		source ${CRASHDIR}/task/task.sh && task_menu
+		. ${CRASHDIR}/task/task.sh && task_menu
 		set_core_config
 	;;
 	6)
@@ -1185,7 +1187,7 @@ set_core_config(){ #配置文件功能
 }
 #下载更新相关
 getscripts(){ #更新脚本文件
-	${CRASHDIR}/start.sh get_bin ${TMPDIR}/update.tar.gz bin/clashfm.tar.gz
+	${CRASHDIR}/start.sh get_bin ${TMPDIR}/ShellCrash.tar.gz ShellCrash.tar.gz
 	if [ "$?" != "0" ];then
 		echo -e "\033[33m文件下载失败！\033[0m"
 		error_down
@@ -1195,16 +1197,16 @@ getscripts(){ #更新脚本文件
 		echo -----------------------------------------------
 		echo 开始解压文件！
 		mkdir -p ${CRASHDIR} > /dev/null
-		tar -zxf "${TMPDIR}/update.tar.gz" ${tar_para} -C ${CRASHDIR}/
+		tar -zxf "${TMPDIR}/ShellCrash.tar.gz" ${tar_para} -C ${CRASHDIR}/
 		if [ $? -ne 0 ];then
 			echo -e "\033[33m文件解压失败！\033[0m"
 			error_down
 		else
-			source ${CRASHDIR}/init.sh >/dev/null
+			. ${CRASHDIR}/init.sh >/dev/null
 			echo -e "\033[32m脚本更新成功！\033[0m"
 		fi
 	fi
-	rm -rf ${TMPDIR}/update.tar.gz
+	rm -rf ${TMPDIR}/ShellCrash.tar.gz
 	exit
 }
 setscripts(){
@@ -1305,7 +1307,7 @@ switch_core(){ #clash与singbox内核切换
 	else
 		COMMAND='"$TMPDIR/CrashCore -d $BINDIR -f $TMPDIR/config.yaml"'
 	fi
-	setconfig COMMAND "$COMMAND" ${CRASHDIR}/configs/command.env && source ${CRASHDIR}/configs/command.env
+	setconfig COMMAND "$COMMAND" ${CRASHDIR}/configs/command.env && . ${CRASHDIR}/configs/command.env
 }
 getcore(){ #下载内核文件
 	[ -z "$crashcore" ] && crashcore=meta
@@ -1433,12 +1435,11 @@ setcustcore(){ #自定义内核
 	}
 	echo -----------------------------------------------
 	echo -e "\033[33m请选择需要使用的核心！\033[0m"
-	echo -e "1 \033[36mMetaCubeX/mihomo\033[32m@release\033[0m版本内核"
-	echo -e "2 \033[36mMetaCubeX/mihomo\033[32m@alpha\033[0m版本内核"
-	echo -e "4 \033[36mSagerNet/sing-box\033[32m@release\033[0m版本内核"
-	echo -e "5 \033[36mreF1nd/sing-box\033[32m@dev\033[0m版本内核(with_gvisor,with_wireguard)"
-	echo -e "6 Clash基础内核(已停止维护)"
-	echo -e "7 Premium-2023.08.17内核(已停止维护)"
+	echo -e "1 \033[36mMetaCubeX/mihomo\033[32m@release\033[0m版本官方内核"
+	echo -e "2 \033[36mMetaCubeX/mihomo\033[32m@alpha\033[0m版本官方内核"
+	echo -e "3 \033[36mvernesong/mihomo\033[32m@alpha\033[0m版本内核(支持Smart策略)"
+	echo -e "4 \033[36mreF1nd/sing-box\033[32m@dev\033[0m版本内核(完整编译)"
+	echo -e "5 Premium-2023.08.17内核(已停止维护)"
 	echo -e "a \033[33m自定义内核链接 \033[0m"
 	echo -----------------------------------------------
 	read -p "请输入对应数字 > " num
@@ -1455,25 +1456,19 @@ setcustcore(){ #自定义内核
 		crashcore=meta
 		checkcustcore
 	;;
-	4)
-		project=SagerNet/sing-box
-		api_tag=latest
-		crashcore=singbox
+	3)
+		project=vernesong/mihomo
+		api_tag=Prerelease-Alpha
+		crashcore=meta
 		checkcustcore
 	;;
-	5)
+	4)
 		project=juewuy/ShellCrash
 		api_tag=singbox_core_reF1nd
 		crashcore=singboxr
 		checkcustcore
 	;;
-	6)
-		project=juewuy/ShellCrash
-		api_tag=Clash_Dreamacro
-		crashcore=clash
-		checkcustcore
-	;;
-	7)
+	5)
 		project=juewuy/ShellCrash
 		api_tag=clash.premium.latest
 		crashcore=clashpre
@@ -1505,14 +1500,17 @@ setcore(){ #内核选择菜单
 	echo -e "\033[36m如需本地上传，请将二进制文件上传至 /tmp 目录后重新运行crash命令\033[0m"
 	echo -----------------------------------------------
 	echo -e "1 \033[43;30m Mihomo  \033[0m：	\033[32m(原meta内核)支持全面\033[0m"
-	echo -e " >>\033[32m$meta_v   	\033[33m占用略高，GeoSite可能不兼容华硕固件\033[0m"
+	echo -e " >>\033[32m$meta_v   		\033[33m占用略高\033[0m"
 	echo -e "  说明文档：	\033[36;4mhttps://wiki.metacubex.one\033[0m"
 	echo -e "2 \033[43;30m SingBoxR \033[0m：	\033[32m支持全面\033[0m"
 	echo -e " >>\033[32m$singboxr_v  	\033[33m使用reF1nd增强分支\033[0m"
 	echo -e "  说明文档：	\033[36;4mhttps://sing-boxr.dustinwin.us.kg\033[0m"
-	#echo -e "4 \033[43;30m SingBoxP \033[0m：	\033[32m支持ssr、providers、dns并发……\033[0m"
-	#echo -e " >>\033[32m$singboxp_v  \033[33mPuerNya分支版本\033[0m"
-	#echo -e "  说明文档：	\033[36;4mhttps://sing-boxp.dustinwin.top\033[0m"
+	echo -e "3 \033[43;30m SingBox \033[0m：	\033[32m占用较低\033[0m"
+	echo -e " >>\033[32m$singbox_v  		\033[33m不支持providers\033[0m"
+	echo -e "  说明文档：	\033[36;4mhttps://sing-box.sagernet.org\033[0m"
+	echo -e "4 \033[43;30m Clash \033[0m：	\033[32m占用低\033[0m"
+	echo -e " >>\033[32m$clash_v  		\033[33m不安全,已停止维护\033[0m"
+	echo -e "  说明文档：	\033[36;4mhttps://lancellc.gitbook.io\033[0m"
 	echo -----------------------------------------------
 	echo -e "5 \033[36m自定义内核\033[0m	$custcore"
 	echo -e "6 \033[32m更新当前内核\033[0m"
@@ -1538,8 +1536,13 @@ setcore(){ #内核选择菜单
 		custcorelink=''
 		getcore
 	;;
+	3)
+		crashcore=singbox
+		custcorelink=''
+		getcore
+	;;
 	4)
-		crashcore=singboxp
+		crashcore=clash
 		custcorelink=''
 		getcore
 	;;
@@ -1569,18 +1572,19 @@ getgeo(){ #下载Geo文件
 		echo -e "\033[31m文件下载失败！\033[0m"
 		error_down
 	else
-		echo "$geoname" | grep -Eq '.mrs|.srs' && {
+		echo "$geoname" | grep -Eq '.mrs|.srs|.tar.gz' && {
 			geofile='ruleset/'
 			[ ! -d "$BINDIR"/ruleset ] && mkdir -p "$BINDIR"/ruleset
 		}
-		mv -f ${TMPDIR}/${geoname} ${BINDIR}/${geofile}${geoname}
+		if echo "$geoname" | grep -Eq '.tar.gz';then
+			tar -zxf ${TMPDIR}/${geoname} ${tar_para} -C ${BINDIR}/${geofile} > /dev/null
+			[ $? -ne 0 ] && echo "文件解压失败！" && rm -rf ${TMPDIR}/${geoname} && exit 1
+			rm -rf ${TMPDIR}/${geoname}
+		else
+			mv -f ${TMPDIR}/${geoname} ${BINDIR}/${geofile}${geoname}
+		fi
 		echo -----------------------------------------------
 		echo -e "\033[32m$geotype数据库文件下载成功！\033[0m"
-		#全球版GeoIP和精简版CN-IP数据库不共存
-		[ "$geoname" = "Country.mmdb" ] && {
-			setconfig Country_v
-			setconfig cn_mini_v
-		}
 		geo_v="$(echo $geotype | awk -F "." '{print $1}')_v"
 		setconfig $geo_v $GeoIP_v
 	fi
@@ -1709,30 +1713,24 @@ setcustgeo(){ #下载自定义数据库文件
 	esac
 }
 setgeo(){ #数据库选择菜单
-	source $CFG_PATH > /dev/null
+	. $CFG_PATH > /dev/null
 	[ -n "$cn_mini_v" ] && geo_type_des=精简版 || geo_type_des=全球版
 	echo -----------------------------------------------
-	echo -e "\033[36m请选择需要更新的Geo/CN数据库文件：\033[0m"
-	echo -e "\033[36m全球版GeoIP和精简版CN-IP数据库不共存\033[0m"
-	echo -e "\033[36mClash内核和SingBox内核的数据库文件不通用\033[0m"
-	echo -e "在线数据库最新版本：\033[32m$GeoIP_v\033[0m"
+	echo -e "\033[36m请选择需要更新的Geo数据库文件：\033[0m"
+	echo -e "\033[36mMihomo内核和SingBox内核的数据库文件不通用\033[0m"
+	echo -e "在线数据库最新版本(每日同步上游)：\033[32m$GeoIP_v\033[0m"
 	echo -----------------------------------------------
-	[ "$cn_ip_route" = "已开启" ] && {
-		echo -e " 1 CN-IP绕过文件(约0.1mb)	\033[33m$china_ip_list_v\033[0m"
-		echo -e " 2 CN-IPV6绕过文件(约30kb)	\033[33m$china_ipv6_list_v\033[0m"
-	}
-	[ -z "$(echo "$crashcore" | grep sing)" ] && {
-		echo -e " 3 Clash精简版GeoIP_cn数据库(约0.1mb)	\033[33m$cn_mini_v\033[0m"
-		echo -e " 4 Meta完整版GeoSite数据库(约5mb)	\033[33m$geosite_v\033[0m"
-		echo -e " 5 geosite-cn.mrs数据库(DNS分流,约0.5mb)	\033[33m$mrs_geosite_cn_v\033[0m"
-	}
-	[ -n "$(echo "$crashcore" | grep sing)" ] && {
-		echo -e " 6 geoip-cn.srs数据库(约0.1mb)	\033[33m$srs_geoip_cn_v\033[0m"
-		echo -e " 7 geosite-cn.srs数据库(DNS分流,约0.5mb)	\033[33m$srs_geosite_cn_v\033[0m"
-	}
+	echo -e " 1 CN-IP绕过文件(约0.1mb)	\033[33m$china_ip_list_v\033[0m"
+	echo -e " 2 CN-IPV6绕过文件(约30kb)	\033[33m$china_ipv6_list_v\033[0m"
 	echo -----------------------------------------------
-	echo -e " a \033[32m自定义数据库文件\033[0m"
-	echo -e " b \033[31m清理数据库文件\033[0m"
+	echo -e " 3 Mihomo精简版GeoIP_cn数据库(约0.1mb)	\033[33m$cn_mini_v\033[0m"
+	echo -e " 4 Mihomo完整版GeoSite数据库(约5mb)	\033[33m$geosite_v\033[0m"
+	echo -e " 5 Mihomo-mrs数据库常用包(约1mb)	\033[33m$mrs_v\033[0m"
+	echo -----------------------------------------------
+	echo -e " 6 Singbox-srs数据库常用包(约0.8mb)	\033[33m$srs_v\033[0m"
+	echo -----------------------------------------------
+	echo -e " 8 \033[32m自定义数据库文件\033[0m"
+	echo -e " 9 \033[31m清理数据库文件\033[0m"
 	echo " 0 返回上级菜单"
 	echo -----------------------------------------------
 	read -p "请输入对应数字 > " num
@@ -1764,30 +1762,24 @@ setgeo(){ #数据库选择菜单
 		setgeo
 	;;
 	5)
-		geotype=mrs_geosite_cn.mrs
-		geoname=geosite-cn.mrs
+		geotype=mrs.tar.gz
+		geoname=mrs.tar.gz
 		getgeo
 		setgeo
 	;;
 	6)
-		geotype=srs_geoip_cn.srs
-		geoname=geoip-cn.srs
+		geotype=srs.tar.gz
+		geoname=srs.tar.gz
 		getgeo
 		setgeo
 	;;
-	7)
-		geotype=srs_geosite_cn.srs
-		geoname=geosite-cn.srs
-		getgeo
-		setgeo
-	;;
-	a)
+	8)
 		setcustgeo
 		setgeo
 	;;
-	b)
+	9)
 		echo -----------------------------------------------
-		echo -e "\033[33m这将清理$CRASHDIR目录下所有数据库文件！\033[0m"
+		echo -e "\033[33m这将清理$CRASHDIR目录及/ruleset目录下所有数据库文件！\033[0m"
 		echo -e "\033[36m清理后启动服务即可自动下载所需文件~\033[0m"
 		echo -----------------------------------------------
 		read -p "确认清理？[1/0] > " res
@@ -1795,7 +1787,7 @@ setgeo(){ #数据库选择菜单
 			for file in cn_ip.txt cn_ipv6.txt Country.mmdb GeoSite.dat geoip.db geosite.db;do
 				rm -rf $CRASHDIR/$file
 			done
-			for var in Country_v cn_mini_v china_ip_list_v china_ipv6_list_v geosite_v geoip_cn_v geosite_cn_v mrs_geosite_cn_v srs_geoip_cn_v srs_geosite_cn_v ;do
+			for var in Country_v cn_mini_v china_ip_list_v china_ipv6_list_v geosite_v geoip_cn_v geosite_cn_v mrs_geosite_cn_v srs_geoip_cn_v srs_geosite_cn_v mrs_v srs_v;do
 				setconfig $var
 			done
 			rm -rf $CRASHDIR/ruleset/*
@@ -1827,7 +1819,7 @@ getdb(){ #下载Dashboard文件
 		tar -zxf "${TMPDIR}/clashdb.tar.gz" ${tar_para} -C $dbdir > /dev/null
 		[ $? -ne 0 ] && echo "文件解压失败！" && rm -rf ${TMPDIR}/clashfm.tar.gz && exit 1
 		#修改默认host和端口
-		if [ "$db_type" = "clashdb" -o "$db_type" = "meta_db" -o "$db_type" = "meta_xd" -o "$db_type" = "zashboard" ];then
+		if [ "$db_type" = "clashdb" -o "$db_type" = "meta_db" -o "$db_type" = "zashboard" ];then
 			[ -d "$dbdir/assets" ] && {
 				sed -i "s/127.0.0.1/${host}/g" $dbdir/assets/*.js
 				sed -i "s/9090/${db_port}/g" $dbdir/assets/*.js
@@ -1836,12 +1828,13 @@ getdb(){ #下载Dashboard文件
       	sed -i "s/127.0.0.1/${host}/g" $dbdir/_nuxt/*.js
       	sed -i "s/9090/${db_port}/g" $dbdir/_nuxt/*.js
       }
+		elif [ "$db_type" = "meta_xd" ];then
+			sed -i "s/127.0.0.1:9090/${host}:${db_port}/g" $dbdir/_nuxt/*.js
 		else
 			sed -i "s/127.0.0.1:9090/${host}:${db_port}/g" $dbdir/*.html
-			#sed -i "s/7892/${db_port}/g" $dbdir/app*.js
 		fi
 		#写入配置文件
-		setconfig hostdir \'$hostdir\'
+		setconfig hostdir "'$hostdir'"
 		echo -----------------------------------------------
 		echo -e "\033[32m面板安装成功！\033[36m如未生效，请使用【Ctrl+F5】强制刷新浏览器！！！\033[0m"
 		rm -rf ${TMPDIR}/clashdb.tar.gz
@@ -1899,9 +1892,9 @@ setdb(){
 	echo -----------------------------------------------
 	echo -e "请选择面板\033[33m安装类型：\033[0m"
 	echo -----------------维护中------------------------
-	echo -e " 1 安装\033[32mzashboard面板\033[0m(约1.2mb)"
+	echo -e " 1 安装\033[32mzashboard面板\033[0m(约2.2mb)"
 	echo -e " 2 安装\033[32mMetaXD面板\033[0m(约1.5mb)"
-	echo -e " 3 安装\033[32mYacd-Meta魔改面板\033[0m(约1.5mb)"
+	echo -e " 3 安装\033[32mYacd-Meta魔改面板\033[0m(约1.7mb)"
 	echo ---------------已停止维护----------------------
 	echo -e " 4 安装\033[32m基础面板\033[0m(约500kb)"
 	echo -e " 5 安装\033[32mMeta基础面板\033[0m(约800kb)"
@@ -1916,12 +1909,12 @@ setdb(){
 	1)
 		db_type=zashboard
 		echo $update_url
-		setconfig external_ui_url "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/zashboard.tar.gz"
+		setconfig external_ui_url "https://raw.githubusercontent.com/juewuy/ShellCrash/update/bin/dashboard/zashboard.tar.gz"
 		dbdir
 	;;
 	2)
 		db_type=meta_xd
-		setconfig external_ui_url "https://raw.githubusercontent.com/juewuy/ShellCrash/dev/bin/dashboard/meta_xd.tar.gz"
+		setconfig external_ui_url "https://raw.githubusercontent.com/juewuy/ShellCrash/update/bin/dashboard/meta_xd.tar.gz"
 		dbdir
 	;;
 	3)
@@ -2021,7 +2014,7 @@ setserver(){
 	[ -n "$url_id" ] && url_name=$(grep "$url_id" ${CRASHDIR}/configs/servers.list 2>/dev/null | awk '{print $2}') || url_name=$update_url
 	saveserver(){
 		#写入配置文件
-		setconfig update_url \'$update_url\'
+		setconfig update_url "'$update_url'"
 		setconfig url_id $url_id
 		setconfig release_type $release_type
 		echo -----------------------------------------------
@@ -2142,10 +2135,13 @@ setserver(){
 }
 #检查更新
 checkupdate(){
-	${CRASHDIR}/start.sh get_bin ${TMPDIR}/version_new bin/version echooff
-	[ "$?" = "0" ] && version_new=$(cat ${TMPDIR}/version_new | grep -oE 'versionsh=.*' | awk -F'=' '{ print $2 }')
-	if [ -n "$version_new" ];then
-		source ${TMPDIR}/version_new 2>/dev/null
+	${CRASHDIR}/start.sh get_bin ${TMPDIR}/version_new version echooff
+	[ "$?" = "0" ] && {
+		version_new=$(cat ${TMPDIR}/version_new)
+		${CRASHDIR}/start.sh get_bin ${TMPDIR}/version_new bin/version echooff
+	}
+	if [ "$?" = "0" ];then
+		. ${TMPDIR}/version_new 2>/dev/null
 	else
 		echo -e "\033[31m检查更新失败！请尝试切换其他安装源！\033[0m"
 		setserver
@@ -2217,7 +2213,7 @@ update(){
 		setserver
 		update
 	elif [ "$num" = 8 ]; then
-		source ${CRASHDIR}/task/task.sh && task_add
+		. ${CRASHDIR}/task/task.sh && task_add
 		update
 
 	elif [ "$num" = 9 ]; then
@@ -2275,6 +2271,7 @@ userguide(){
 			setconfig crashcore "mihomo"
 			setconfig redir_mod "$redir_mod"
 			setconfig dns_mod mix
+			setconfig firewall_area '1'
 			#默认启用绕过CN-IP
 			setconfig cn_ip_route 已开启
 			#自动识别IPV6
@@ -2344,8 +2341,10 @@ userguide(){
 	if [ -s $openssldir/certs/ca-certificates.crt ];then
 		dns_nameserver='https://doh.360.cn/dns-query, https://dns.alidns.com/dns-query, https://doh.pub/dns-query'
 		dns_fallback='https://cloudflare-dns.com/dns-query, https://dns.google/dns-query, https://doh.opendns.com/dns-query'
-		setconfig dns_nameserver \'"$dns_nameserver"\'
-		setconfig dns_fallback \'"$dns_fallback"\'
+		dns_resolver='https://223.5.5.5/dns-query, 2400:3200::1'
+		setconfig dns_nameserver "'$dns_nameserver'"
+		setconfig dns_fallback "'$dns_fallback'"
+		setconfig dns_resolver "'$dns_resolver'"
 	fi
 	#开启公网访问
 	sethost(){
@@ -2377,11 +2376,11 @@ userguide(){
 			setconfig mix_port $mix_port
 			setconfig host $host
 			setconfig public_support $public_support
-			setconfig authentication \'$authentication\'
+			setconfig authentication "'$authentication'"
 		fi
 	fi
 	#启用推荐的自动任务配置
-	source ${CRASHDIR}/task/task.sh && task_recom
+	. ${CRASHDIR}/task/task.sh && task_recom
 	#小米设备软固化
 	if [ "$systype" = "mi_snapshot" ];then
 		echo -----------------------------------------------
