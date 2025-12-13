@@ -1905,12 +1905,12 @@ setdb(){
 	1)
 		db_type=zashboard
 		echo $update_url
-		setconfig external_ui_url "https://raw.githubusercontent.com/juewuy/ShellCrash/update/bin/dashboard/zashboard.tar.gz"
+		setconfig external_ui_url "https://raw.githubusercontent.com/slipdaly/ShellCrash/update/bin/dashboard/zashboard.tar.gz"
 		dbdir
 	;;
 	2)
 		db_type=meta_xd
-		setconfig external_ui_url "https://raw.githubusercontent.com/juewuy/ShellCrash/update/bin/dashboard/meta_xd.tar.gz"
+		setconfig external_ui_url "https://raw.githubusercontent.com/slipdaly/ShellCrash/update/bin/dashboard/meta_xd.tar.gz"
 		dbdir
 	;;
 	3)

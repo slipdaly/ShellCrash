@@ -206,7 +206,7 @@ put_save() { #推送面板选择
 	fi
 }
 get_bin() { #专用于项目内部文件的下载
-	[ -z "$update_url" ] && update_url=https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@master
+	[ -z "$update_url" ] && update_url=https://testingcf.jsdelivr.net/gh/slipdaly/ShellCrash@master
 	if [ -n "$url_id" ]; then
 		echo "$2" | grep -q '^bin/' && release_type=update #/bin文件改为在update分支下载
 		echo "$2" | grep -q '^public/' && release_type=dev #/public文件改为在dev分支下载
@@ -575,7 +575,7 @@ EOF
 	[ "$dns_mod" = "mix" ] && ! grep -q 'cn:' "$TMPDIR"/rule-providers.yaml && ! grep -q '^rule-providers' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && {
 		space=$(sed -n "1p" "$TMPDIR"/rule-providers.yaml | grep -oE '^ *')                               #获取空格数
 		[ -z "$space" ] && space='  '
-		echo "${space}cn: {type: http, behavior: domain, format: mrs, path: ./ruleset/cn.mrs, url: https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@update/bin/geodata/mrs_geosite_cn.mrs}" >> "$TMPDIR"/rule-providers.yaml 
+		echo "${space}cn: {type: http, behavior: domain, format: mrs, path: ./ruleset/cn.mrs, url: https://testingcf.jsdelivr.net/gh/slipdaly/ShellCrash@update/bin/geodata/mrs_geosite_cn.mrs}" >> "$TMPDIR"/rule-providers.yaml 
 }
 	#对齐rules中的空格
 	sed -i 's/^ *-/ -/g' "$TMPDIR"/rules.yaml
@@ -720,7 +720,7 @@ EOF
         "tag": "cn",
         "type": "remote",
         "path": "./ruleset/cn.srs",
-        "url": "https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@update/bin/geodata/srs_geosite_cn.srs"
+        "url": "https://testingcf.jsdelivr.net/gh/slipdaly/ShellCrash@update/bin/geodata/srs_geosite_cn.srs"
       }
     ]
   }
@@ -2139,9 +2139,9 @@ webget)
 	if [ -n "$(pidof CrashCore)" ]; then
 		[ -n "$authentication" ] && auth="$authentication@"
 		export all_proxy="http://${auth}127.0.0.1:$mix_port"
-		url=$(echo $3 | sed 's#https://.*jsdelivr.net/gh/juewuy/ShellCrash[@|/]#https://raw.githubusercontent.com/juewuy/ShellCrash/#' | sed 's#https://gh.jwsc.eu.org/#https://raw.githubusercontent.com/juewuy/ShellCrash/#')
+		url=$(echo $3 | sed 's#https://.*jsdelivr.net/gh/slipdaly/ShellCrash[@|/]#https://raw.githubusercontent.com/slipdaly/ShellCrash/#' | sed 's#https://gh.jwsc.eu.org/#https://raw.githubusercontent.com/slipdaly/ShellCrash/#')
 	else
-		url=$(echo $3 | sed 's#https://raw.githubusercontent.com/juewuy/ShellCrash/#https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@#')
+		url=$(echo $3 | sed 's#https://raw.githubusercontent.com/slipdaly/ShellCrash/#https://testingcf.jsdelivr.net/gh/slipdaly/ShellCrash@#')
 	fi
 	#参数【$2】代表下载目录，【$3】代表在线地址
 	#参数【$4】代表输出显示，【$5】不启用重定向
