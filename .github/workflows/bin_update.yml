@@ -13,8 +13,9 @@ jobs:
     - name: Checkout update branch (ignore if missing)
       uses: actions/checkout@v5
       with:
-        ref: update
+        repository: slipdaly/ShellCrash
         fetch-depth: 1
+        persist-credentials: false   # 禁用默认凭据（我们用 token push）
 
     - name: Apt Update & Update CA
       env:
