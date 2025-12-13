@@ -15,7 +15,6 @@ jobs:
       with:
         ref: update
         fetch-depth: 1
-        persist-credentials: false   # 禁用默认凭据（我们用 token push）
 
     - name: Apt Update & Update CA
       env:
