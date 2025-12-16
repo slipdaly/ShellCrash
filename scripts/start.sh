@@ -2185,67 +2185,64 @@ webget)
         [ "$6" = "skipceroff" ] && certificate='' || certificate='-k'
         [ -n "$7" ] && agent="--user-agent \"$7\""
         # 检查curl是否支持--compressed参数
-            check_compressed_support() {
-              curl --compressed --version >/dev/null 2>&1
-              return $?
-            }
+        check_compressed_support() {
+          curl --compressed --version >/dev/null 2>&1
+          return $?
+        }
         # 设置压缩参数
-            if check_compressed_support; then
-              # 支持 --compressed
-              compressed_cmd='--compressed'
-              echo "curl支持--compressed参数" >/dev/null 2>&1
-            else
-              case "$url" in
-                https://subapi.cmliussss.net*)
-                  # 不支持 --compressed，使用头部方式
-                  compressed_cmd='-H'
-                  compressed_header='Accept-Encoding: gzip, deflate'
-                  echo "curl不支持--compressed参数，使用Accept-Encoding头" >/dev/null 2>&1
-                  ;;
-                *)
-                  compressed_cmd=''
-                  compressed_header=''
-                  ;;
-              esac
-            fi
+        if check_compressed_support; then
+          # 支持 --compressed
+          compressed_cmd='--compressed'
+          echo "curl支持--compressed参数" >/dev/null 2>&1
+        else
+          case "$url" in
+            https://subapi.cmliussss.net*)
+              # 不支持 --compressed，使用头部方式
+              compressed_cmd='-H'
+              compressed_header='Accept-Encoding: gzip, deflate'
+              echo "curl不支持--compressed参数，使用Accept-Encoding头" >/dev/null 2>&1
+              ;;
+            *)
+              compressed_cmd=''
+              compressed_header=''
+              ;;
+          esac
+        fi
         if curl --version | grep -q '^curl 8.' && ckcmd base64; then
             auth_b64=$(echo -n "$authentication" | base64)
-            result=$(curl $agent -w %{http_code} --connect-timeout 3 --proxy-header "Proxy-Authorization: Basic $auth_b64" $progress $redirect $certificate -o "$2" "$url")
             if [ "$compressed_cmd" = "--compressed" ]; then
-                    result=$(curl $agent -w %{http_code} $compressed_cmd --connect-timeout 3 --proxy-header "Proxy-Authorization: Basic $auth_b64"  $progress $redirect $certificate -o "$2" "$url")
-                  else
-                    if [ -n "$compressed_cmd" ] && [ -n "$compressed_header" ]; then
-                      result=$(curl $agent -w %{http_code} $compressed_cmd "$compressed_header" --connect-timeout 3 --proxy-header "Proxy-Authorization: Basic $auth_b64" $progress $redirect $certificate -o "$2" "$url")
-                    else
-                      result=$(curl $agent -w %{http_code} --connect-timeout 3 --proxy-header "Proxy-Authorization: Basic $auth_b64" $progress $redirect $certificate -o "$2" "$url")
-                    fi
-                  fi
-        else
-            result=$(curl $agent -w %{http_code} --connect-timeout 3 $progress $redirect $certificate -o "$2" "$url")
-            if [ "$compressed_cmd" = "--compressed" ]; then
-                    result=$(curl $agent -w %{http_code} $compressed_cmd --connect-timeout 3 $progress $redirect $certificate -o "$2" "$url")
-                  else
-                    if [ -n "$compressed_cmd" ] && [ -n "$compressed_header" ]; then
-                      result=$(curl $agent -w %{http_code} $compressed_cmd "$compressed_header" --connect-timeout 3 $progress $redirect $certificate -o "$2" "$url")
-                    else
-                      result=$(curl $agent -w %{http_code} --connect-timeout 3 $progress $redirect $certificate -o "$2" "$url")
-                    fi
-                  fi
-        fi
-        [ "$result" != "200" ] && export all_proxy="" && result=$(curl $agent -w %{http_code} --connect-timeout 5 $progress $redirect $certificate -o "$2" "$3")
-        # 如果第一次失败，取消代理后重试
-            if [ "$result" != "200" ]; then
-                export all_proxy=""
-                if [ "$compressed_cmd" = "--compressed" ]; then
-                  result=$(curl $agent -w %{http_code} $compressed_cmd --connect-timeout 5 $progress $redirect $certificate -o "$2" "$3")
-                else
-                  if [ -n "$compressed_cmd" ] && [ -n "$compressed_header" ]; then
-                    result=$(curl $agent -w %{http_code} $compressed_cmd "$compressed_header" --connect-timeout 5 $progress $redirect $certificate -o "$2" "$3")
-                  else
-                    result=$(curl $agent -w %{http_code} --connect-timeout 5 $progress $redirect $certificate -o "$2" "$3")
-                  fi
-                fi
+              result=$(curl $agent -w %{http_code} $compressed_cmd --connect-timeout 3 --proxy-header "Proxy-Authorization: Basic $auth_b64" $progress $redirect $certificate -o "$2" "$url")
+            else
+              if [ -n "$compressed_cmd" ] && [ -n "$compressed_header" ]; then
+                result=$(curl $agent -w %{http_code} $compressed_cmd "$compressed_header" --connect-timeout 3 --proxy-header "Proxy-Authorization: Basic $auth_b64" $progress $redirect $certificate -o "$2" "$url")
+              else
+                result=$(curl $agent -w %{http_code} --connect-timeout 3 --proxy-header "Proxy-Authorization: Basic $auth_b64" $progress $redirect $certificate -o "$2" "$url")
+              fi
             fi
+        else
+            if [ "$compressed_cmd" = "--compressed" ]; then
+              result=$(curl $agent -w %{http_code} $compressed_cmd --connect-timeout 3 $progress $redirect $certificate -o "$2" "$url")
+            else
+              if [ -n "$compressed_cmd" ] && [ -n "$compressed_header" ]; then
+                result=$(curl $agent -w %{http_code} $compressed_cmd "$compressed_header" --connect-timeout 3 $progress $redirect $certificate -o "$2" "$url")
+              else
+                result=$(curl $agent -w %{http_code} --connect-timeout 3 $progress $redirect $certificate -o "$2" "$url")
+              fi
+            fi
+        fi
+        # 如果第一次失败，取消代理后重试
+        if [ "$result" != "200" ]; then
+            export all_proxy=""
+            if [ "$compressed_cmd" = "--compressed" ]; then
+              result=$(curl $agent -w %{http_code} $compressed_cmd --connect-timeout 5 $progress $redirect $certificate -o "$2" "$3")
+            else
+              if [ -n "$compressed_cmd" ] && [ -n "$compressed_header" ]; then
+                result=$(curl $agent -w %{http_code} $compressed_cmd "$compressed_header" --connect-timeout 5 $progress $redirect $certificate -o "$2" "$3")
+              else
+                result=$(curl $agent -w %{http_code} --connect-timeout 5 $progress $redirect $certificate -o "$2" "$3")
+              fi
+            fi
+        fi
     else
         if wget --version >/dev/null 2>&1; then
             [ "$4" = "echooff" ] && progress='-q' || progress='-q --show-progress'
