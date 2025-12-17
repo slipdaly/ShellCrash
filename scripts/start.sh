@@ -23,6 +23,7 @@ getconfig() { #读取配置及全局变量
     [ -z "$ipv6_redir" ] && ipv6_redir=未开启
     [ -z "$ipv6_dns" ] && ipv6_dns=已开启
     [ -z "$cn_ipv6_route" ] && cn_ipv6_route=未开启
+    [ -z "$cn_ip_route" ] && cn_ip_route=未开启
     [ -z "$macfilter_type" ] && macfilter_type=黑名单
     [ -z "$mix_port" ] && mix_port=7890
     [ -z "$redir_port" ] && redir_port=7892
@@ -651,8 +652,17 @@ EOF
         done
     }
     #anti-ad广告过滤
-    if grep -q 'anti-ad' "$CRASHDIR"/yamls/others.yaml 2>/dev/null ; then
+    if grep -q 'anti-ad' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && grep -q "⛔️ 广告拦截" "$TMPDIR"/proxy-groups.yaml; then
         line_num=$(grep -n -m 1 -v "全球直连" "$TMPDIR"/rules.yaml | cut -d: -f1) && [ -n "$line_num" ] && sed -i "${line_num}i\  - RULE-SET,anti-ad,⛔️ 广告拦截" "$TMPDIR"/rules.yaml
+    fi
+    # 添加cn规则
+    if [ "$cn_ip_route" = "未开启" ] && grep -q 'cn:' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && grep -q "🎯 全球直连" "$TMPDIR"/proxy-groups.yaml; then
+        # 查找"漏网之鱼"行号，注意中文字符匹配
+        leak_line_num=$(grep -n "漏网之鱼" "$TMPDIR"/rules.yaml | cut -d: -f1)
+        if [ -n "$leak_line_num" ]; then
+            # 在漏网之鱼前一行插入cn规则
+            sed -i "$((leak_line_num))i\  - RULE-SET,cn,🎯 全球直连" "$TMPDIR"/rules.yaml
+        fi
     fi
     #节点绕过功能支持
     sed -i "/#节点绕过/d" "$TMPDIR"/rules.yaml
