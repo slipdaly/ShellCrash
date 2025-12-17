@@ -305,40 +305,11 @@ urlencode() {
         esac
     done
 }
-urlencodeSafe() {
-    local i c hex
-		LC_ALL=C
-		local pos=0
-		local len=${#1}
-		while [ $pos -lt $len ]; do
-			c="${1:$pos:1}"
-			# 检查是否是%字符，且后面跟着两个十六进制字符
-			if [ "$c" = "%" ] && [ $((pos+2)) -lt $len ]; then
-					local next1="${1:$((pos+1)):1}"
-					local next2="${1:$((pos+2)):1}"
-					# 使用 case 语句检查是否是十六进制字符
-					case "$next1$next2" in
-						[0-9A-Fa-f][0-9A-Fa-f])
-							# 已编码的%XX，直接输出
-							printf "%%%s%s" "$next1" "$next2"
-							pos=$((pos+3))
-							continue
-							;;
-					esac
-			fi
-			# 处理其他字符
-			hex=$(printf '%02X' "'$c")
-			case "$hex" in
-					2D|2E|5F|7E|3[0-9]|4[1-9A-F]|5[A-F]|6[1-9A-F]|7[0-9A-E])
-							printf '%s' "$c"
-							;;
-					*)
-							printf '%%%s' "$hex"
-							;;
-			esac
-			pos=$((pos+1))
-		done
+urldecode() {
+    local string="${1}"
+    printf '%b' "${string//%/\\x}"
 }
+
 #配置文件相关
 check_clash_config() { #检查clash配置文件
     #检测节点或providers
@@ -426,7 +397,9 @@ get_core_config() { #下载内核配置文件
     if [ -z "$Https" ]; then
         #Urlencord转码处理保留字符
         if ckcmd hexdump;then
-			urlencodeUrl="exclude=$(urlencode "$exclude")&include=$(urlencode "$include")&url=$(urlencodeSafe "$Url")&config=$(urlencode "$Config")"
+        	_Ulr=$(urldecode "$Url")
+        	echo "$_Ulr"
+			urlencodeUrl="exclude=$(urlencode "$exclude")&include=$(urlencode "$include")&url=$(urlencode "$_Ulr")&config=$(urlencode "$Config")"
 		else
 			urlencodeUrl="exclude=$exclude&include=$include&url=$Url&config=$Config"
 		fi
