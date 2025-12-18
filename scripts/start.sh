@@ -306,8 +306,7 @@ urlencode() {
     done
 }
 urldecode() {
-    local string="${1}"
-    printf '%b' "${string//%/\\x}"
+    printf '%b' "$(echo "$1" | sed 's/%/\\x/g')"
 }
 
 #配置文件相关
