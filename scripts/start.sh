@@ -397,7 +397,6 @@ get_core_config() { #下载内核配置文件
         #Urlencord转码处理保留字符
         if ckcmd hexdump;then
         	_Ulr=$(urldecode "$Url")
-        	echo "$_Ulr"
 			urlencodeUrl="exclude=$(urlencode "$exclude")&include=$(urlencode "$include")&url=$(urlencode "$_Ulr")&config=$(urlencode "$Config")"
 		else
 			urlencodeUrl="exclude=$exclude&include=$include&url=$Url&config=$Config"
