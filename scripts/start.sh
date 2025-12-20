@@ -32,7 +32,7 @@ getconfig() { #读取配置及全局变量
     [ -z "$dns_port" ] && dns_port=1053
     [ -z "$fwmark" ] && fwmark=$redir_port
     routing_mark=$((fwmark + 2))
-    [ -z "$table" ] && table=166
+    [ -z "$table" ] && table=116
     [ -z "$sniffer" ] && sniffer=已开启
     #是否代理常用端口
     [ -z "$common_ports" ] && common_ports=已开启
