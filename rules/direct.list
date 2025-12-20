@@ -9,3 +9,6 @@ DOMAIN-SUFFIX,cfargotunnel.com
 DOMAIN-SUFFIX,cloudflare.com
 DOMAIN-SUFFIX,cloudflared.com
 DOMAIN,sx.lege.eu.org
+DOMAIN,cbbs.flyo.eu.org
+DOMAIN,ssh.flyo.eu.org
+DOMAIN,sshbss.flyo.eu.org
