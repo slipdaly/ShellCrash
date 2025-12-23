@@ -650,11 +650,11 @@ EOF
         cat "$TMPDIR"/rules.yaml >>"$TMPDIR"/rules.add
         mv -f "$TMPDIR"/rules.add "$TMPDIR"/rules.yaml
     }
-    #mix模式生成rule-providers
-    [ "$dns_mod" = "mix" ] && ! grep -q 'cn:' "$TMPDIR"/rule-providers.yaml && ! grep -q '^rule-providers' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && {
+    #mix和route模式生成rule-providers
+    [ "$dns_mod" = "mix" ] || [ "$dns_mod" = "route" ] && ! grep -q 'cn:' "$TMPDIR"/rule-providers.yaml && ! grep -q '^rule-providers' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && {
         space=$(sed -n "1p" "$TMPDIR"/rule-providers.yaml | grep -oE '^ *') #获取空格数
         [ -z "$space" ] && space='  '
-        echo "${space}cn: {type: http, behavior: domain, format: mrs, path: ./ruleset/cn.mrs, url: https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@update/bin/geodata/mrs_geosite_cn.mrs}" >>"$TMPDIR"/rule-providers.yaml
+        echo "${space}cn: {type: http, behavior: domain, format: mrs, path: ./ruleset/cn.mrs, url: https://testingcf.jsdelivr.net/gh/slipdaly/ShellCrash@update/bin/geodata/mrs_geosite_cn.mrs}" >>"$TMPDIR"/rule-providers.yaml
     }
     #对齐rules中的空格
     sed -i 's/^ *-/ -/g' "$TMPDIR"/rules.yaml
@@ -1891,9 +1891,9 @@ clash_check() { #clash启动前检查
         core_exchange meta '当前内核不支持非root用户启用本机代理'
     core_check
     #预下载GeoIP数据库并排除存在自定义数据库链接的情况
-    [ -n "$(grep -oEi 'geoip' "$CRASHDIR"/yamls/*.yaml)" ] && [ -z "$(grep -oEi 'geoip:|mmdb:' "$CRASHDIR"/yamls/*.yaml)" ] && ckgeo Country.mmdb cn_mini.mmdb
+    [ -n "$(grep -oEi 'geoip:' "$CRASHDIR"/yamls/*.yaml)" ] && [ -z "$(grep -oEi 'geoip:|mmdb:' "$CRASHDIR"/yamls/*.yaml)" ] && ckgeo Country.mmdb cn_mini.mmdb
     #预下载GeoSite数据库并排除存在自定义数据库链接的情况
-    [ -n "$(grep -oEi 'geosite' "$CRASHDIR"/yamls/*.yaml)" ] && [ -z "$(grep -oEi 'geosite:' "$CRASHDIR"/yamls/*.yaml)" ] && ckgeo GeoSite.dat geosite.dat
+    [ -n "$(grep -oEi 'geosite:' "$CRASHDIR"/yamls/*.yaml)" ] && [ -z "$(grep -oEi 'geosite:' "$CRASHDIR"/yamls/*.yaml)" ] && ckgeo GeoSite.dat geosite.dat
     #预下载cn.mrs数据库
     [ -n "$(cat "$CRASHDIR"/yamls/*.yaml | grep -oEi 'rule_set.*cn')" -o "$dns_mod" = "mix" ] && ckgeo ruleset/cn.mrs mrs_geosite_cn.mrs
     return 0
@@ -2166,12 +2166,11 @@ init)
             profile=$(cat /etc/profile | grep -oE '\-f.*jffs.*profile' | awk '{print $2}')
         fi
     fi
-    sed -i "/alias crash/d" $profile
-    sed -i "/alias clash/d" $profile
-    sed -i "/export CRASHDIR/d" $profile
-    echo "alias crash=\"$CRASHDIR/menu.sh\"" >>$profile
-    echo "alias clash=\"$CRASHDIR/menu.sh\"" >>$profile
-    echo "export CRASHDIR=\"$CRASHDIR\"" >>$profile
+    [ -z "$my_alias" ] && my_alias=crash
+    sed -i "/ShellCrash\/menu.sh/"d "$profile"
+    echo "alias ${my_alias}=\"sh $CRASHDIR/menu.sh\"" >>"$profile"
+    sed -i "/export CRASHDIR/d" "$profile"
+    echo "export CRASHDIR=\"$CRASHDIR\"" >>"$profile"
     [ -f "$CRASHDIR"/.dis_startup ] && cronset "保守模式守护进程" || $0 start
     ;;
 webget)

@@ -934,7 +934,7 @@ gen_core_config_link(){ #在线生成工具
 		echo -e " 0 \033[31m撤销输入并返回上级菜单\033[0m"
 		echo "-----------------------------------------------"
 		read -p "请直接输入第${i}个链接或对应数字选项 > " link
-		link=$(echo $link | sed 's/\&/\\&/g')   #处理分隔符
+		link=$(echo $link | sed 's/\&/%26/g')   #处理分隔符
 		test=$(echo $link | grep "://")
 		link=`echo ${link/\#*/''}`   #删除链接附带的注释内容
 		link=`echo ${link/\ \(*\)/''}`   #删除恶心的超链接内容
@@ -1333,7 +1333,10 @@ getcore(){ #下载内核文件
 		rm -rf ${TMPDIR}/core_new.tar.gz
 		[ -z "$custcorelink" ] && error_down
 	else
-		[ -n "$(pidof CrashCore)" ] && ${CRASHDIR}/start.sh stop #停止内核服务防止内存不足
+		[ -n "$(pidof CrashCore)" ] && {
+			${CRASHDIR}/start.sh stop #停止内核服务防止内存不足
+			rm -rf "$TMPDIR"/CrashCore #删除缓存内核防止缓存空间不足
+		}
 		[ -f ${TMPDIR}/core_new.tar.gz ] && {
 			mkdir -p ${TMPDIR}/core_tmp
 			[ "$BINDIR" = "$TMPDIR" ] && rm -rf ${TMPDIR}/CrashCore #小闪存模式防止空间不足
