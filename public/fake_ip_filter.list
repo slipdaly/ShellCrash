@@ -155,3 +155,24 @@ ps.res.netease.com
 #LOL语音
 +.gcloudcs.com
 +.gcloudsdk.com
+# Trae
++.trae.ai
+# cloudflare
++.cloudflare.com
++.cloudflared.com
++.cloudflare.com
++.argotunnel.com
++.cfargotunnel.com
+cloudflared
++stripe.com
++stripe.network
++stripecdn.com
++stripeassets.com
++jetbrains.com
++intel.com
++trae.ai
++jquery.com
++intercom.io
+# DNS tool
+dnsmasq
+smartdns

@@ -9,7 +9,15 @@ DOMAIN-SUFFIX,cfargotunnel.com
 DOMAIN-SUFFIX,cloudflare.com
 DOMAIN-SUFFIX,cloudflared.com
 DOMAIN-SUFFIX,stripe.com
+DOMAIN-SUFFIX,stripe.network
 DOMAIN-SUFFIX,stripecdn.com
 DOMAIN-SUFFIX,stripeassets.com
 DOMAIN-SUFFIX,jetbrains.com
 DOMAIN-SUFFIX,intel.com
+DOMAIN-SUFFIX,trae.ai
+DOMAIN-SUFFIX,jquery.com
+DOMAIN-SUFFIX,intercom.io
+IP-CIDR,1.1.1.1/32,no-resolve
+IP-CIDR,1.0.0.1/32,no-resolve
+IP-CIDR,8.8.8.8/32,no-resolve
+IP-CIDR,8.8.4.4/32,no-resolve
