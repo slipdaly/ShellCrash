@@ -8,3 +8,7 @@ DOMAIN-SUFFIX,argotunnel.com
 DOMAIN-SUFFIX,cfargotunnel.com
 DOMAIN-SUFFIX,cloudflare.com
 DOMAIN-SUFFIX,cloudflared.com
+DOMAIN-SUFFIX,stripe.com
+DOMAIN-SUFFIX,stripecdn.com
+DOMAIN-SUFFIX,stripeassets.com
+DOMAIN-SUFFIX,jetbrains.com
