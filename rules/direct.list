@@ -20,6 +20,8 @@ DOMAIN-SUFFIX,intercom.io
 DOMAIN-SUFFIX,intercomcdn.com
 DOMAIN-SUFFIX,itopvpn.com
 DOMAIN-SUFFIX,testingcf.jsdelivr.net
+DOMAIN-SUFFIX,gh-proxy.com
+DOMAIN-SUFFIX,gh-proxy.org
 IP-CIDR,1.1.1.1/32,no-resolve
 IP-CIDR,1.0.0.1/32,no-resolve
 IP-CIDR,8.8.8.8/32,no-resolve
