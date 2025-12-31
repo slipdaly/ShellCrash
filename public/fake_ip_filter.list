@@ -177,3 +177,6 @@ cloudflared
 # DNS tool
 dnsmasq
 smartdns
++testingcf.jsdelivr.net
++gh-proxy.com
++gh-proxy.org
