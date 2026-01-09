@@ -691,7 +691,7 @@ fw_filter_lan() { #局域网设备过滤
 set_adv_config() { #端口设置
     . "$CFG_PATH" >/dev/null
     [ -z "$secret" ] && secret=未设置
-    [ -z "$table" ] && table=100
+    [ -z "$table" ] && table=116
     [ -z "$authentication" ] && auth=未设置 || auth=******
     inputport() {
         read -p "请输入端口号(1-65535) > " portx

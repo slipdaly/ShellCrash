@@ -34,8 +34,8 @@ get_core_config() { #下载内核配置文件
     if [ -z "$Https" ]; then
         #Urlencord转码处理保留字符
         if ckcmd hexdump;then
-			Url=$(echo $Url | sed 's/%26/\&/g')   #处理分隔符
-			urlencodeUrl="exclude=$(urlencode "$exclude")&include=$(urlencode "$include")&url=$(urlencode "$Url")&config=$(urlencode "$Config")"
+			_Ulr=$(urldecode "$Url")
+      urlencodeUrl="exclude=$(urlencode "$exclude")&include=$(urlencode "$include")&url=$(urlencode "$_Ulr")&config=$(urlencode "$Config")"
 		else
 			urlencodeUrl="exclude=$exclude&include=$include&url=$Url&config=$Config"
 		fi

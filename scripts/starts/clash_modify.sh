@@ -175,6 +175,19 @@ EOF
 		. "$CRASHDIR"/configs/gateway.cfg
 		. "$CRASHDIR"/libs/meta_listeners.sh
 	}
+	  #anti-ad广告过滤
+    if grep -q 'anti-ad' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && grep -q "⛔️ 广告拦截" "$TMPDIR"/proxy-groups.yaml; then
+        line_num=$(grep -n -m 1 -v "全球直连" "$TMPDIR"/rules.yaml | cut -d: -f1) && [ -n "$line_num" ] && sed -i "${line_num}i\  - RULE-SET,anti-ad,⛔️ 广告拦截" "$TMPDIR"/rules.yaml
+    fi
+    # 添加cn规则
+    if [ "$cn_ip_route" = OFF ] && grep -q 'cn:' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && grep -q "🎯 全球直连" "$TMPDIR"/proxy-groups.yaml; then
+        # 查找"漏网之鱼"行号，注意中文字符匹配
+        leak_line_num=$(grep -n "漏网之鱼" "$TMPDIR"/rules.yaml | cut -d: -f1)
+        if [ -n "$leak_line_num" ]; then
+            # 在漏网之鱼前一行插入cn规则
+            sed -i "$((leak_line_num))i\  - RULE-SET,cn,🎯 全球直连" "$TMPDIR"/rules.yaml
+        fi
+    fi
     #节点绕过功能支持
     sed -i "/#节点绕过/d" "$TMPDIR"/rules.yaml
     [ "$proxies_bypass" = "ON" ] && {

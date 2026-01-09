@@ -13,3 +13,6 @@ urlencode() {
         esac
     done
 }
+urldecode() {
+    printf '%b' "$(echo "$1" | sed 's/%/\\x/g')"
+}

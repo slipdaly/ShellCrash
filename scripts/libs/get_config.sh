@@ -9,7 +9,7 @@
 [ -z "$dns_redir_port" ] && dns_redir_port="$dns_port"
 [ -z "$fwmark" ] && fwmark="$redir_port"
 routing_mark=$((fwmark + 2))
-[ -z "$table" ] && table=100
+[ -z "$table" ] && table=116
 
 [ -z "$dns_nameserver" ] && {
 	dns_nameserver='223.5.5.5, 1.2.4.8'

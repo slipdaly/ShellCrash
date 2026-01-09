@@ -18,8 +18,8 @@ webget(){
 		[ "$3" = "echooff" ] && progress='-q' || progress='-q --show-progress'
 		[ "$4" = "rediroff" ] && redirect='--max-redirect=0' || redirect=''
 		[ "$5" = "skipceroff" ] && certificate='' || certificate='--no-check-certificate'
-		wget -Y on $agent $progress $redirect $certificate --timeout=3 -O "$1" "$url" && return 0 #成功则退出否则重试
-		wget -Y off $agent $progress $redirect $certificate --timeout=5 -O "$1" "$2"
+		wget -Y on $agent $progress $redirect $certificate --compression=auto --timeout=3 -O "$1" "$url" && return 0 #成功则退出否则重试
+		wget -Y off $agent $progress $redirect $certificate --compression=auto --timeout=5 -O "$1" "$2"
 		return $?
 	elif curl --version >/dev/null 2>&1; then
 		[ "$3" = "echooff" ] && progress='-s' || progress='-#'
