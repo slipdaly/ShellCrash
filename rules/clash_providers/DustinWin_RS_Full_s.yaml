@@ -68,7 +68,7 @@ rule-providers:
   directcus:
     type: http
     behavior: domain
-    url: "https://testingcf.jsdelivr.net/gh/slipdaly/ShellCrash@master/rules/direct.mrs"
+    url: "https://raw.githubusercontent.com/slipdaly/ShellCrash/master/rules/direct.mrs"
     format: mrs
     path: ./ruleset/directcus.mrs
     interval: 86400
