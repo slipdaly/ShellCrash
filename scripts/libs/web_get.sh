@@ -32,7 +32,8 @@ webget(){
 			result=$(curl $agent -w '%{http_code}' --connect-timeout 3 $progress $redirect $certificate -o "$1" "$url")
 		fi
 		[ "$result" = "200" ] && return 0 #成功则退出否则重试
-		export all_proxy=""
+		export https_proxy=""
+		export http_proxy=""
 		result=$(curl $agent -w '%{http_code}' --connect-timeout 5 $progress $redirect $certificate -o "$1" "$2")
 		[ "$result" = "200" ]
 		return $?
@@ -42,7 +43,7 @@ webget(){
 		wget -Y off $progress -O "$1" "$2"
 		return $?
 	else
-		echo "找不到可用下载工具！！！请安装Curl或Wget！！！"
+		echo "No Curl or Wget！！！"
 		return 1
 	fi
 }

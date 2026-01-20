@@ -2,8 +2,8 @@
 getlanip() { #获取局域网host地址
     i=1
     while [ "$i" -le "20" ]; do
-        host_ipv4=$(ip a 2>&1 | grep -w 'inet' | grep 'global' | grep 'brd' | grep -Ev 'utun|iot|peer|docker|podman|virbr|vnet|ovs|vmbr|veth|vmnic|vboxnet|lxcbr|xenbr|vEthernet' | grep -E ' 1(92|0|72)\.' | sed 's/.*inet.//g' | sed 's/[[:space:]]br.*$//g' | sed 's/metric.*$//g') #ipv4局域网网段
-        [ "$ipv6_redir" = "ON" ] && host_ipv6=$(ip a 2>&1 | grep -w 'inet6' | grep -E 'global' | sed 's/.*inet6.//g' | sed 's/scope.*$//g')                                                                                                                                #ipv6公网地址段
+        host_ipv4=$(ip route show scope link | grep -Ev 'wan|utun|iot|peer|docker|podman|virbr|vnet|ovs|vmbr|veth|vmnic|vboxnet|lxcbr|xenbr|vEthernet' | awk '{print $1}') #ipv4局域网网段
+        [ "$ipv6_redir" = "ON" ] && host_ipv6=$(ip -6 route show default | awk '{print $3}' | tr '\n' ' ' | sed 's/ $//') #ipv6公网地址段
         [ -f "$TMPDIR"/ShellCrash.log ] && break
         [ -n "$host_ipv4" -a "$ipv6_redir" != "ON" ] && break
         [ -n "$host_ipv4" -a -n "$host_ipv6" ] && break
@@ -13,7 +13,7 @@ getlanip() { #获取局域网host地址
     if [ "$replace_default_host_ipv4" == "ON" ]; then
         host_ipv4="$cust_host_ipv4"
     else
-        host_ipv4="$host_ipv4$cust_host_ipv4"
+        host_ipv4=$(echo $host_ipv4 $cust_host_ipv4 | tr '\n' ' ' | sed 's/ $//')
     fi
     #缺省配置
     [ -z "$host_ipv4" ] && {
