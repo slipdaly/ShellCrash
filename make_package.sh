@@ -82,6 +82,9 @@ if [ -z "$OUTPUT_FILE" ]; then
     OUTPUT_FILE="ShellCrash.tar.gz"
 fi
 
+# 为输出目录设置变量
+OUTPUT_DIR="$SRC_DIR"
+
 # 日志函数
 log() {
     if [ "$VERBOSE" = true ]; then
@@ -147,7 +150,7 @@ cp -f "$SRC_DIR/public/servers.list" "$TEMP_DIR/" 2>/dev/null && convert_to_unix
 
 # 从public和scripts目录复制任务列表文件
 cp -f "$SRC_DIR/scripts/task.list" "$TEMP_DIR/" 2>/dev/null && convert_to_unix "$TEMP_DIR/task.list" && log "已复制 scripts/task.list" || log "scripts/task.list 不存在"
-cp -f "$SRC_DIR/public/task.list" "$TEMP_DIR/task.list" 2>/dev/null && convert_to_unix "$TEMP_DIR/task.list" && log "已复制 public/task.list -> task.list" || log "public/task.list 也不存在"
+cp -f "$SRC_DIR/public/task.list" "$TEMP_DIR/" 2>/dev/null && convert_to_unix "$TEMP_DIR/task.list" && log "已复制 public/task.list -> task.list" || log "public/task.list 也不存在"
 cp -f "$SRC_DIR/public/task_en.list" "$TEMP_DIR/task_en.list" 2>/dev/null && convert_to_unix "$TEMP_DIR/task_en.list" && log "已复制 public/task_en.list -> task_en.list" || echo "注意: public/task_en.list 不存在"
 
 # 从bin/geodata目录复制IP列表文件（并重命名）
@@ -160,7 +163,14 @@ mkdir -p "$TEMP_DIR/libs"
 if [ -d "$SRC_DIR/scripts/libs" ]; then
     cp -r "$SRC_DIR/scripts/libs/"* "$TEMP_DIR/libs/"
     # 转换libs目录下的文本文件为Unix格式
-    find "$TEMP_DIR/libs" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" \) -exec bash -c 'for file; do convert_to_unix "$file"; done' _ {} + 2>/dev/null || log "libs目录中没有找到可转换的文件或转换过程中出现非关键错误"
+    if [ -n "$(find "$TEMP_DIR/libs" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" \) -print -quit 2>/dev/null)" ]; then
+        # 使用find -exec执行转换函数，需要将函数定义导出到子shell
+        export -f convert_to_unix
+        find "$TEMP_DIR/libs" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" \) -exec bash -c 'convert_to_unix "$1"' _ {} {} \;
+        log "已转换 libs 目录中的文本文件"
+    else
+        log "libs目录中没有找到需要转换的文本文件"
+    fi
     log "已复制 libs 目录"
 else
     echo "警告: scripts/libs 目录不存在"
@@ -172,7 +182,13 @@ mkdir -p "$TEMP_DIR/menus"
 if [ -d "$SRC_DIR/scripts/menus" ]; then
     cp -r "$SRC_DIR/scripts/menus/"* "$TEMP_DIR/menus/"
     # 转换menus目录下的文本文件为Unix格式
-    find "$TEMP_DIR/menus" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" \) -exec bash -c 'for file; do convert_to_unix "$file"; done' _ {} + 2>/dev/null || log "menus目录中没有找到可转换的文件或转换过程中出现非关键错误"
+    if [ -n "$(find "$TEMP_DIR/menus" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" \) -print -quit 2>/dev/null)" ]; then
+        export -f convert_to_unix
+        find "$TEMP_DIR/menus" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" \) -exec bash -c 'convert_to_unix "$1"' _ {} {} \;
+        log "已转换 menus 目录中的文本文件"
+    else
+        log "menus目录中没有找到需要转换的文本文件"
+    fi
     log "已复制 menus 目录"
 else
     echo "警告: scripts/menus 目录不存在"
@@ -184,7 +200,13 @@ mkdir -p "$TEMP_DIR/starts"
 if [ -d "$SRC_DIR/scripts/starts" ]; then
     cp -r "$SRC_DIR/scripts/starts/"* "$TEMP_DIR/starts/"
     # 转换starts目录下的文本文件为Unix格式
-    find "$TEMP_DIR/starts" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" -o -name "*.service" -o -name "*.procd" -o -name "*.openrc" \) -exec bash -c 'for file; do convert_to_unix "$file"; done' _ {} + 2>/dev/null || log "starts目录中没有找到可转换的文件或转换过程中出现非关键错误"
+    if [ -n "$(find "$TEMP_DIR/starts" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" -o -name "*.service" -o -name "*.procd" -o -name "*.openrc" \) -print -quit 2>/dev/null)" ]; then
+        export -f convert_to_unix
+        find "$TEMP_DIR/starts" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" -o -name "*.service" -o -name "*.procd" -o -name "*.openrc" \) -exec bash -c 'convert_to_unix "$1"' _ {} {} \;
+        log "已转换 starts 目录中的文本文件"
+    else
+        log "starts目录中没有找到需要转换的文本文件"
+    fi
     log "已复制 starts 目录"
 else
     echo "警告: scripts/starts 目录不存在"
@@ -194,30 +216,13 @@ fi
 cd "$TEMP_DIR"
 
 log "开始创建压缩包..."
-# 创建tar.gz文件
-tar -czf "$OUTPUT_FILE" \
-    init.sh \
-    menu.sh \
-    start.sh \
-    version \
-    $(test -f clash_providers.list && echo clash_providers.list) \
-    $(test -f cn_ip.txt && echo cn_ip.txt) \
-    $(test -f cn_ipv6.txt && echo cn_ipv6.txt) \
-    $(test -f fake_ip_filter.list && echo fake_ip_filter.list) \
-    $(test -f fallback_filter.list && echo fallback_filter.list) \
-    $(test -f servers.list && echo servers.list) \
-    $(test -f singbox_providers.list && echo singbox_providers.list) \
-    $(test -f task.list && echo task.list) \
-    $(test -f task_en.list && echo task_en.list) \
-    libs/* \
-    menus/* \
-    starts/*
+# 使用绝对路径确保目标文件位置正确
+tar zcvf "$SRC_DIR/$(basename "$OUTPUT_FILE")" *
 
-# 移动打包好的文件到源码目录
-mv "$OUTPUT_FILE" "$SRC_DIR/"
+# 返回源码目录
+cd "$SRC_DIR"
 
 # 清理临时目录
-cd - > /dev/null
 rm -rf "$TEMP_DIR"
 
 echo "$OUTPUT_FILE 创建完成!"
