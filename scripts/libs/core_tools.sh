@@ -23,7 +23,9 @@ core_unzip() { #$1:需要解压的文件 $2:目标文件名
 }
 core_find(){
 	if [ ! -f "$TMPDIR"/CrashCore ];then
-		core_dir=$(find "$BINDIR"/CrashCore.* $find_para 2>/dev/null)
+		[ -n "$(find "$CRASHDIR"/CrashCore.* $find_para 2>/dev/null)" ] &&
+			mv -f "$CRASHDIR"/CrashCore.* "$BINDIR"/
+		core_dir=$(find "$BINDIR"/CrashCore.* $find_para 2>/dev/null | head -n 1)
 		[ -n "$core_dir" ] && core_unzip "$core_dir" CrashCore
 	fi
 }
@@ -44,8 +46,17 @@ core_check(){
 		return 2
 	else
 		rm -f "$BINDIR"/CrashCore.tar.gz "$BINDIR"/CrashCore.gz "$BINDIR"/CrashCore.upx
-		mv -f "$TMPDIR/Coretmp.$zip_type" "$BINDIR/CrashCore.$zip_type"
-		mv -f "$TMPDIR/core_new" "$TMPDIR/CrashCore"
+		if [ -z "$zip_type" ];then
+			gzip -c "$TMPDIR/core_new" > "$BINDIR/CrashCore.gz"
+		else
+			mv -f "$1" "$BINDIR/CrashCore.$zip_type"
+		fi
+		if [ "$zip_type" = 'upx' ];then
+			rm -f "$1" "$TMPDIR"/core_new
+			ln -sf "$TMPDIR/CrashCore.upx" "$TMPDIR/CrashCore"
+		else
+			mv -f "$TMPDIR/core_new" "$TMPDIR/CrashCore"
+		fi
 		core_v="$v"
 		setconfig COMMAND "$COMMAND" "$CRASHDIR"/configs/command.env && . "$CRASHDIR"/configs/command.env
 		setconfig crashcore "$crashcore"
@@ -69,7 +80,7 @@ core_webget(){
 	if [ "$?" = 0 ];then
 		core_check "$TMPDIR/Coretmp.$zip_type"
 	else
-		rm -rf "$TMPDIR/Coretmp.$zip_type"
+		rm -f "$TMPDIR/Coretmp.$zip_type"
 		return 1
 	fi
 }

@@ -44,12 +44,6 @@ checkport() { #检查端口冲突
     done
 }
 ckstatus() { #脚本启动前检查
-    #检查脚本配置文件
-    if [ -f "$CFG_PATH" ]; then
-        [ -n "$(awk 'a[$0]++' $CFG_PATH)" ] && awk '!a[$0]++' "$CFG_PATH" >"$CFG_PATH" #检查重复行并去除
-    else
-        . "$CRASHDIR"/init.sh >/dev/null 2>&1
-    fi
     versionsh=$(cat "$CRASHDIR"/version)
     [ -n "$versionsh" ] && versionsh_l=$versionsh
     [ -z "$redir_mod" ] && redir_mod=纯净模式
@@ -100,13 +94,14 @@ ckstatus() { #脚本启动前检查
     echo "-----------------------------------------------"
     #检查新手引导
     if [ -z "$userguide" ]; then
+        userguide=1
         setconfig userguide 1
         . "$CRASHDIR"/menus/8_tools.sh && userguide
     fi
     #检查执行权限
     [ ! -x "$CRASHDIR"/start.sh ] && chmod +x "$CRASHDIR"/start.sh
     #检查/tmp内核文件
-    for file in $(ls /tmp | grep -v [/$] | grep -v ' ' | grep -Ev ".*(zip|7z|tar)$" | grep -iE 'CrashCore|^clash$|^clash-linux.*|^mihomo.*|^sing.*box|meta.*'); do
+    for file in $(ls /tmp | grep -v [/$] | grep -v ' ' | grep -Ev ".*(zip|7z|tar)$" | grep -iE 'CrashCore|^clash$|^clash-linux.*|^mihomo.*|^sing.*box'); do
         echo -e "发现可用的内核文件： \033[36m/tmp/$file\033[0m "
         read -p "是否加载(会停止当前服务)？(1/0) > " res
         [ "$res" = 1 ] && {
