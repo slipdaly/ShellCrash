@@ -54,7 +54,7 @@ rule-providers:
     type: http
     behavior: domain
     format: mrs
-    path: ./ruleset/ads.mrs
+    path: ./ruleset/dnsd.mrs
     url: "https://raw.githubusercontent.com/slipdaly/ShellCrash/master/rules/dnsd.mrs"
     interval: 86400
 
