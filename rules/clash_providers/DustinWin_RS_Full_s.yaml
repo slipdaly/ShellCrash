@@ -18,6 +18,7 @@ proxy-groups:
   - {name: 🔒 私有网络, type: select, proxies: [🎯 全球直连], hidden: true}
   - {name: 🐟 漏网之鱼, type: select, proxies: [🚀 节点选择, 🇭🇰 香港节点, 🇹🇼 台湾节点, 🇯🇵 日本节点, 🇸🇬 新加坡节点, 🇺🇸 美国节点, 👑 高级节点, 📉 省流节点, {providers_tags}, 🎯 全球直连]}
   - {name: 🛑 广告域名, type: select, proxies: [🔴 全球拦截, 🟢 全球绕过]}
+  - {name: 🔐 DoHDoT, type: select, proxies: [🔴 全球拦截, 🎯 全球直连]}
   - {name: 🔴 全球拦截, type: select, proxies: [REJECT], hidden: true}
   - {name: 🟢 全球绕过, type: select, proxies: [PASS], hidden: true}
   - {name: 🎯 全球直连, type: select, proxies: [DIRECT], hidden: true}
@@ -47,6 +48,14 @@ rule-providers:
     format: mrs
     path: ./ruleset/ads.mrs
     url: "https://anti-ad.net/mihomo.mrs"
+    interval: 86400
+
+  dnsD:
+    type: http
+    behavior: domain
+    format: mrs
+    path: ./ruleset/ads.mrs
+    url: "https://raw.githubusercontent.com/slipdaly/ShellCrash/master/rules/dnsd.mrs"
     interval: 86400
 
   cloudflare:
@@ -204,6 +213,7 @@ rule-providers:
 rules:
   - RULE-SET,private,🔒 私有网络
   - RULE-SET,ads,🛑 广告域名
+  - RULE-SET,dnsD,🔐 DoHDoT
   - RULE-SET,directcus,🛡️ 直连域名
   - RULE-SET,github,💻 Github
   - RULE-SET,cloudflare,🛡️ 直连域名
