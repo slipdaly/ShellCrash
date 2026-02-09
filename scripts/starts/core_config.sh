@@ -41,6 +41,8 @@ get_core_config() { #下载内核配置文件
 		fi
         Https="${Server}/sub?target=${target}&${Server_ua}=${user_agent}&insert=true&new_name=true&scv=true&udp=true&${urlencodeUrl}"
         url_type=true
+	else
+		Https=$(echo $Https | sed 's/\\&/\&/g')   #还原转义
     fi
     #输出
     echo "-----------------------------------------------"
@@ -65,7 +67,7 @@ get_core_config() { #下载内核配置文件
                 exit 1
             else
                 retry=$((retry + 1))
-                logger "配置文件获取失败！" 31
+                logger "配置文件获取失败！" 31 off on
                 if [ "$retry" = 1 ]; then
                     echo -e "\033[32m尝试更新服务器列表并使用其他服务器获取配置！\033[0m"
                     update_servers
