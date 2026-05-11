@@ -10,7 +10,7 @@ if [ -f "$PIDFILE" ]; then
 	PID="$(cat "$PIDFILE")"
 	if [ -n "$PID" ] && [ "$PID" -eq "$PID" ] 2>/dev/null; then
 		if kill -0 "$PID" 2>/dev/null || [ -d "/proc/$PID" ]; then
-			rm -d "$LOCKDIR" 2>/dev/null
+			rm -fr "$LOCKDIR" 2>/dev/null
 			exit 0
 		fi
 	else
@@ -27,4 +27,4 @@ else
 	start_legacy "$CRASHDIR/menus/bot_tg.sh" "$1"
 fi
 
-rm -d "$LOCKDIR" 2>/dev/null
+rm -fr "$LOCKDIR" 2>/dev/null
