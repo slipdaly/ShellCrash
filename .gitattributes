@@ -1,0 +1,4 @@
+*.sh text eol=lf
+version text eol=lf
+bin/version text eol=lf
+configs/*.list text eol=lf

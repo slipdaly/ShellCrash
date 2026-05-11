@@ -44,7 +44,7 @@ checkport() { #检查端口冲突
     done
 }
 ckstatus() { #脚本启动前检查
-    versionsh=$(cat "$CRASHDIR"/version)
+    versionsh=$(tr -d '\r' < "$CRASHDIR"/version)
     [ -n "$versionsh" ] && versionsh_l=$versionsh
     [ -z "$redir_mod" ] && redir_mod=纯净模式
     #获取本机host地址

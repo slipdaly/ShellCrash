@@ -109,10 +109,11 @@ checkupdate(){
 	echo -ne "\033[32m正在检查更新！\033[0m\r"
 	get_bin "$TMPDIR"/version_new version echooff
 	[ "$?" = "0" ] && {
-		version_new=$(cat "$TMPDIR"/version_new)
+		version_new=$(tr -d '\r' < "$TMPDIR"/version_new)
 		get_bin "$TMPDIR"/version_new bin/version echooff
 	}
 	if [ "$?" = "0" ];then
+		tr -d '\r' < "$TMPDIR"/version_new > "$TMPDIR"/version_new.tmp && mv -f "$TMPDIR"/version_new.tmp "$TMPDIR"/version_new
 		. "$TMPDIR"/version_new 2>/dev/null
 	else
 		echo -e "\033[31m检查更新失败！请尝试切换其他安装源！\033[0m"
