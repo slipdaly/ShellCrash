@@ -3,6 +3,11 @@
 
 ckcmd iptables && iptables -h | grep -q '\-w' && iptable='iptables -w' || iptable=iptables
 ckcmd ip6tables && ip6tables -h | grep -q '\-w' && ip6table='ip6tables -w' || ip6table=ip6tables
+
+has_owner_match() {
+    "$1" $2 -t "$3" -A "$4" -m owner --gid-owner 0 -j RETURN 2>/dev/null || return 1
+    "$1" $2 -t "$3" -D "$4" -m owner --gid-owner 0 -j RETURN 2>/dev/null
+}
 	
 start_ipt_route() { #iptables-route通用工具
     #$1:iptables/ip6tables	$2:所在的表(nat/mangle) $3:所在的链(OUTPUT/PREROUTING)	$4:新创建的shellcrash链表	$5:tcp/udp/all
@@ -27,7 +32,7 @@ start_ipt_route() { #iptables-route通用工具
     "$1" $w -t "$2" -A "$4" -p udp --dport 53 -j RETURN
     #防回环
     "$1" $w -t "$2" -A "$4" -m mark --mark $routing_mark -j RETURN
-    [ "$3" = 'OUTPUT' ] && for gid in 453 7890; do
+    [ "$3" = 'OUTPUT' ] && has_owner_match "$1" "$w" "$2" "$4" && for gid in 453 7890; do
         "$1" $w -t "$2" -A "$4" -m owner --gid-owner $gid -j RETURN
     done
     [ "$firewall_area" = 5 ] && "$1" $w -t "$2" -A "$4" -s $bypass_host -j RETURN
@@ -93,7 +98,7 @@ start_ipt_dns() { #iptables-dns通用工具
     "$1" $w -t nat -N "$3"
     #防回环
     "$1" $w -t nat -A "$3" -m mark --mark $routing_mark -j RETURN
-    [ "$2" = 'OUTPUT' ] && for gid in 453 7890; do
+    [ "$2" = 'OUTPUT' ] && has_owner_match "$1" "$w" nat "$3" && for gid in 453 7890; do
         "$1" $w -t nat -A "$3" -m owner --gid-owner $gid -j RETURN
     done
     [ "$firewall_area" = 5 ] && {
