@@ -3,7 +3,14 @@ getlanip() { #获取局域网host地址
     i=1
     while [ "$i" -le "20" ]; do
         host_ipv4=$(ip route show scope link | grep -Ev 'wan|utun|iot|peer|docker|podman|virbr|vnet|ovs|vmbr|veth|vmnic|vboxnet|lxcbr|xenbr|vEthernet' | awk '{print $1}') #ipv4局域网网段
-        [ "$ipv6_redir" = "ON" ] && host_ipv6=$(ip -6 route show default | awk '{print $3}' | tr '\n' ' ' | sed 's/ $//') #ipv6公网地址段
+        [ "$ipv6_redir" = "ON" ] && host_ipv6=$(
+            {
+                ip -6 route show |
+                    grep -Ev 'utun|wan|peer|docker|podman|virbr|vnet|ovs|vmbr|veth|vmnic|vboxnet|lxcbr|xenbr|vEthernet|ppp' |
+                    awk '$1 ~ /:.*\/[0-9]+$/ {print $1}'
+                ip -6 route show default | awk '$1=="default" && $2=="via" && $3 ~ /:/ {print $3 "/128"}'
+            } | grep -Ev '^$|^fe80::/64$|^ff00::/8$' | sort -u | tr '\n' ' ' | sed 's/ $//'
+        ) #ipv6局域网网段及必要的上游地址
         [ -f "$TMPDIR"/ShellCrash.log ] && break
         [ -n "$host_ipv4" -a "$ipv6_redir" != "ON" ] && break
         [ -n "$host_ipv4" -a -n "$host_ipv6" ] && break

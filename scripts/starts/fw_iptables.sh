@@ -273,8 +273,7 @@ start_iptables() { #iptables配置总入口
             if $ip6table -j REDIRECT -h 2>/dev/null | grep -q '\--to-ports'; then
                 start_ipt_dns ip6tables PREROUTING shellcrashv6_dns #ipv6-局域网dns转发
             else
-                $ip6table -I INPUT -p tcp --dport 53 -j REJECT >/dev/null 2>&1
-                $ip6table -I INPUT -p udp --dport 53 -j REJECT >/dev/null 2>&1
+                logger "当前设备内核缺少ip6tables_REDIRECT模块支持，已跳过IPv6 DNS劫持并保留本机53端口服务！" 31
             fi
         }
         [ "$local_proxy" = true ] && start_ipt_dns iptables OUTPUT shellcrash_dns_out #ipv4-本机dns转发
