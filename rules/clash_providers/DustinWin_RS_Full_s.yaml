@@ -212,8 +212,8 @@ rule-providers:
 
 rules:
   - RULE-SET,private,🔒 私有网络
-  - RULE-SET,ads,🛑 广告域名
   - RULE-SET,dnsD,🔐 DoHDoT
+  - RULE-SET,ads,🛑 广告域名
   - RULE-SET,directcus,🛡️ 直连域名
   - RULE-SET,github,💻 Github
   - RULE-SET,cloudflare,🛡️ 直连域名
