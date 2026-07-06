@@ -773,10 +773,10 @@ override(){ #配置文件覆写
 			read -p "是否停止服务？(1/0) > " res
 			if [ "$res" = "1" ];then
 				"$CRASHDIR"/start.sh stop
-				setport
+				. "$CRASHDIR"/menus/2_settings.sh && set_adv_config
 			fi
 		else
-			setport
+			. "$CRASHDIR"/menus/2_settings.sh && set_adv_config
 		fi
 		override
 	;;
