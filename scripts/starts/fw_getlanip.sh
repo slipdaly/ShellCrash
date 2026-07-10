@@ -7,9 +7,9 @@ getlanip() { #获取局域网host地址
             {
                 ip -6 route show |
                     grep -Ev 'utun|wan|peer|docker|podman|virbr|vnet|ovs|vmbr|veth|vmnic|vboxnet|lxcbr|xenbr|vEthernet|ppp' |
-                    awk '$1 ~ /:.*\/[0-9]+$/ {print $1}'
+                    awk '$1 ~ /:.*\/[0-9]+$/ {print $1} $1=="default" && $2=="from" && $3 ~ /:.*\/[0-9]+$/ {print $3}'
                 ip -6 route show default | awk '$1=="default" && $2=="via" && $3 ~ /:/ {print $3 "/128"}'
-            } | grep -Ev '^$|^fe80::/64$|^ff00::/8$' | sort -u | tr '\n' ' ' | sed 's/ $//'
+            } | grep -Ev '^$|^fe80::/64$|^ff00::/8$' | grep -E '^[0-9A-Fa-f:.]+(/[0-9]{1,3})?$' | sort -u | tr '\n' ' ' | sed 's/ $//'
         ) #ipv6局域网网段及必要的上游地址
         [ -f "$TMPDIR"/ShellCrash.log ] && break
         [ -n "$host_ipv4" -a "$ipv6_redir" != "ON" ] && break
@@ -38,7 +38,7 @@ getlanip() { #获取局域网host地址
 		host_ipv4='192.168.0.0/16 10.0.0.0/12 172.16.0.0/12'
 		logger "无法获取本地LAN-IPV4网段，请前往流量过滤设置界面设置自定义网段！" 31
 	}
-    host_ipv6="fe80::/10 fd00::/8 $host_ipv6$ts_host_ipv6$wg_host_ipv6"
+    host_ipv6=$(echo "fe80::/10 fd00::/8 $host_ipv6$ts_host_ipv6$wg_host_ipv6" | tr ' ' '\n' | grep -E '^[0-9A-Fa-f:.]+(/[0-9]{1,3})?$' | grep ':' | sort -u | tr '\n' ' ' | sed 's/ $//')
     #获取本机出口IP地址
     local_ipv4=$(ip route 2>&1 | grep -Ev 'utun|iot|docker|linkdown' | grep -Eo 'src.*' | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | sort -u)
     [ -z "$local_ipv4" ] && local_ipv4=$(ip route 2>&1 | grep -Eo 'src.*' | grep -Eo '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | sort -u)
