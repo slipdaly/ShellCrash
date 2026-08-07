@@ -147,11 +147,14 @@ cp -f "$SRC_DIR/rules/singbox_providers/singbox_providers.list" "$TEMP_DIR/" 2>/
 cp -f "$SRC_DIR/public/fake_ip_filter.list" "$TEMP_DIR/" 2>/dev/null && convert_to_unix "$TEMP_DIR/fake_ip_filter.list" && log "已复制 fake_ip_filter.list" || echo "注意: public/fake_ip_filter.list 不存在"
 cp -f "$SRC_DIR/public/fallback_filter.list" "$TEMP_DIR/" 2>/dev/null && convert_to_unix "$TEMP_DIR/fallback_filter.list" && log "已复制 fallback_filter.list" || echo "注意: public/fallback_filter.list 不存在"
 cp -f "$SRC_DIR/public/servers.list" "$TEMP_DIR/" 2>/dev/null && convert_to_unix "$TEMP_DIR/servers.list" && log "已复制 servers.list" || echo "注意: public/servers.list 不存在"
+cp -f "$SRC_DIR/public/servers_en.list" "$TEMP_DIR/" 2>/dev/null && convert_to_unix "$TEMP_DIR/servers_en.list" && log "已复制 servers_en.list" || echo "注意: public/servers_en.list 不存在"
+cp -f "$SRC_DIR/public/servers_chs.list" "$TEMP_DIR/" 2>/dev/null && convert_to_unix "$TEMP_DIR/servers_chs.list" && log "已复制 servers_chs.list" || echo "注意: public/servers_chs.list 不存在"
 
 # 从public和scripts目录复制任务列表文件
 cp -f "$SRC_DIR/scripts/task.list" "$TEMP_DIR/" 2>/dev/null && convert_to_unix "$TEMP_DIR/task.list" && log "已复制 scripts/task.list" || log "scripts/task.list 不存在"
 cp -f "$SRC_DIR/public/task.list" "$TEMP_DIR/" 2>/dev/null && convert_to_unix "$TEMP_DIR/task.list" && log "已复制 public/task.list -> task.list" || log "public/task.list 也不存在"
 cp -f "$SRC_DIR/public/task_en.list" "$TEMP_DIR/task_en.list" 2>/dev/null && convert_to_unix "$TEMP_DIR/task_en.list" && log "已复制 public/task_en.list -> task_en.list" || echo "注意: public/task_en.list 不存在"
+cp -f "$SRC_DIR/public/task_chs.list" "$TEMP_DIR/task_chs.list" 2>/dev/null && convert_to_unix "$TEMP_DIR/task_chs.list" && log "已复制 public/task_chs.list -> task_chs.list" || echo "注意: public/task_chs.list 不存在"
 
 # 从bin/geodata目录复制IP列表文件（并重命名）
 cp -f "$SRC_DIR/bin/geodata/china_ip_list.txt" "$TEMP_DIR/cn_ip.txt" 2>/dev/null && convert_to_unix "$TEMP_DIR/cn_ip.txt" && log "已复制 china_ip_list.txt -> cn_ip.txt" || echo "注意: bin/geodata/china_ip_list.txt 不存在"
@@ -174,6 +177,25 @@ if [ -d "$SRC_DIR/scripts/libs" ]; then
     log "已复制 libs 目录"
 else
     echo "警告: scripts/libs 目录不存在"
+fi
+
+# 复制lang目录
+log "复制lang目录..."
+mkdir -p "$TEMP_DIR/lang"
+if [ -d "$SRC_DIR/scripts/lang" ]; then
+    cp -r "$SRC_DIR/scripts/lang/"* "$TEMP_DIR/lang/"
+    # 转换libs目录下的文本文件为Unix格式
+    if [ -n "$(find "$TEMP_DIR/lang" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" \) -print -quit 2>/dev/null)" ]; then
+        # 使用find -exec执行转换函数，需要将函数定义导出到子shell
+        export -f convert_to_unix
+        find "$TEMP_DIR/lang" -type f \( -name "*.sh" -o -name "*.list" -o -name "*.txt" -o -name "*.conf" -o -name "*.ini" \) -exec bash -c 'convert_to_unix "$1"' _ {} {} \;
+        log "已转换 lang 目录中的文本文件"
+    else
+        log "lang目录中没有找到需要转换的文本文件"
+    fi
+    log "已复制 lang 目录"
+else
+    echo "警告: scripts/lang 目录不存在"
 fi
 
 # 复制menus目录
