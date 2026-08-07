@@ -14,110 +14,149 @@
 accept_ports=$(echo "$fw_wan_ports,$vms_port,$sss_port" | sed "s/,,/,/g ;s/^,// ;s/,$//")
 #重置iptables相关规则
 ckcmd iptables && {
-	ckcmd iptables && iptables -h | grep -q '\-w' && iptable='iptables -w' || iptable=iptables
-	#dns
-	$iptable -t nat -D PREROUTING -p tcp --dport 53 -j shellcrash_dns 2>/dev/null
-	$iptable -t nat -D PREROUTING -p udp --dport 53 -j shellcrash_dns 2>/dev/null
-	$iptable -t nat -D OUTPUT -p udp --dport 53 -j shellcrash_dns_out 2>/dev/null
-	$iptable -t nat -D OUTPUT -p tcp --dport 53 -j shellcrash_dns_out 2>/dev/null
-	#redir
-	$iptable -t nat -D PREROUTING -p tcp $ports -j shellcrash 2>/dev/null
-	$iptable -t nat -D PREROUTING -p tcp -d 28.0.0.0/8 -j shellcrash 2>/dev/null
-	$iptable -t nat -D OUTPUT -p tcp $ports -j shellcrash_out 2>/dev/null
-	$iptable -t nat -D OUTPUT -p tcp -d 28.0.0.0/8 -j shellcrash_out 2>/dev/null
-	#vm_dns
-	$iptable -t nat -D PREROUTING -p tcp --dport 53 -j shellcrash_vm_dns 2>/dev/null
-	$iptable -t nat -D PREROUTING -p udp --dport 53 -j shellcrash_vm_dns 2>/dev/null
-	#vm_redir
-	$iptable -t nat -D PREROUTING -p tcp $ports -j shellcrash_vm 2>/dev/null
-	$iptable -t nat -D PREROUTING -p tcp -d 28.0.0.0/8 -j shellcrash_vm 2>/dev/null
-	#TPROXY&tun
-	$iptable -t mangle -D PREROUTING -p tcp $ports -j shellcrash_mark 2>/dev/null
-	$iptable -t mangle -D PREROUTING -p udp $ports -j shellcrash_mark 2>/dev/null
-	$iptable -t mangle -D PREROUTING -p tcp -d 28.0.0.0/8 -j shellcrash_mark 2>/dev/null
-	$iptable -t mangle -D PREROUTING -p udp -d 28.0.0.0/8 -j shellcrash_mark 2>/dev/null
-	$iptable -t mangle -D OUTPUT -p tcp $ports -j shellcrash_mark_out 2>/dev/null
-	$iptable -t mangle -D OUTPUT -p udp $ports -j shellcrash_mark_out 2>/dev/null
-	$iptable -t mangle -D OUTPUT -p tcp -d 28.0.0.0/8 -j shellcrash_mark_out 2>/dev/null
-	$iptable -t mangle -D OUTPUT -p udp -d 28.0.0.0/8 -j shellcrash_mark_out 2>/dev/null
-	$iptable -t mangle -D PREROUTING -m mark --mark $fwmark -p tcp -j TPROXY --on-port $tproxy_port 2>/dev/null
-	$iptable -t mangle -D PREROUTING -m mark --mark $fwmark -p udp -j TPROXY --on-port $tproxy_port 2>/dev/null
-	#tun
-	$iptable -D FORWARD -o utun -j ACCEPT 2>/dev/null
-	#屏蔽QUIC
-	[ "$dns_mod" != "fake-ip" ] && [ "$cn_ip_route" != "OFF" ] && set_cn_ip='-m set ! --match-set cn_ip dst'
-	$iptable -D INPUT -p udp --dport 443 $set_cn_ip -j REJECT 2>/dev/null
-	$iptable -D FORWARD -p udp --dport 443 -o utun $set_cn_ip -j REJECT 2>/dev/null
-	#公网访问
-	$iptable -D INPUT -i lo -j ACCEPT 2>/dev/null
-	for ip in $host_ipv4; do
-		$iptable -D INPUT -s $ip -j ACCEPT 2>/dev/null
-	done
-	$iptable -D INPUT -p tcp -m multiport --dports "$accept_ports" -j ACCEPT 2>/dev/null
-	$iptable -D INPUT -p udp -m multiport --dports "$accept_ports" -j ACCEPT 2>/dev/null
-	$iptable -D INPUT -p tcp -m multiport --dports "$mix_port,$db_port" -j REJECT 2>/dev/null
-	$iptable -D INPUT -p udp -m multiport --dports "$mix_port,$db_port" -j REJECT 2>/dev/null
-	#清理shellcrash自建表
-	for text in shellcrash_dns shellcrash shellcrash_out shellcrash_dns_out shellcrash_vm shellcrash_vm_dns; do
-		$iptable -t nat -F "$text" 2>/dev/null
-		$iptable -t nat -X "$text" 2>/dev/null
-	done
-	for text in shellcrash_mark shellcrash_mark_out; do
-		$iptable -t mangle -F "$text" 2>/dev/null
-		$iptable -t mangle -X "$text" 2>/dev/null
-	done
+    ckcmd iptables && iptables -h | grep -q '\-w' && iptable='iptables -w' || iptable=iptables
+    #dns
+    $iptable -t nat -D PREROUTING -p tcp --dport 53 -j shellcrash_dns 2>/dev/null
+    $iptable -t nat -D PREROUTING -p udp --dport 53 -j shellcrash_dns 2>/dev/null
+    $iptable -t nat -D OUTPUT -p udp --dport 53 -j shellcrash_dns_out 2>/dev/null
+    $iptable -t nat -D OUTPUT -p tcp --dport 53 -j shellcrash_dns_out 2>/dev/null
+    if [ -n "$ports" ]; then
+        clean_ports=$(echo "$multiport" | sed 's/ //g')
+        echo "$clean_ports" | awk -F, '{
+            for(i=1; i<=NF; i+=9) {
+                group=""; for(j=i; j<i+9 && j<=NF; j++) group=(group == "" ? $j : group "," $j)
+                print group
+            }
+        }' | while read -r port_group; do
+            if [ -n "$port_group" ]; then
+                $iptable -t nat -D PREROUTING -p tcp -m multiport --dports "$port_group" -j shellcrash 2>/dev/null
+                $iptable -t nat -D OUTPUT -p tcp -m multiport --dports "$port_group" -j shellcrash_out 2>/dev/null
+                $iptable -t nat -D PREROUTING -p tcp -m multiport --dports "$port_group" -j shellcrash_vm 2>/dev/null
+                $iptable -t mangle -D PREROUTING -p tcp -m multiport --dports "$port_group" -j shellcrash_mark 2>/dev/null
+                $iptable -t mangle -D PREROUTING -p udp -m multiport --dports "$port_group" -j shellcrash_mark 2>/dev/null
+                $iptable -t mangle -D OUTPUT -p tcp -m multiport --dports "$port_group" -j shellcrash_mark_out 2>/dev/null
+                $iptable -t mangle -D OUTPUT -p udp -m multiport --dports "$port_group" -j shellcrash_mark_out 2>/dev/null
+            fi
+        done
+    else
+        $iptable -t nat -D PREROUTING -p tcp -j shellcrash 2>/dev/null
+        $iptable -t nat -D OUTPUT -p tcp -j shellcrash_out 2>/dev/null
+        $iptable -t nat -D PREROUTING -p tcp -j shellcrash_vm 2>/dev/null
+        $iptable -t mangle -D PREROUTING -p tcp -j shellcrash_mark 2>/dev/null
+        $iptable -t mangle -D PREROUTING -p udp -j shellcrash_mark 2>/dev/null
+        $iptable -t mangle -D OUTPUT -p tcp -j shellcrash_mark_out 2>/dev/null
+        $iptable -t mangle -D OUTPUT -p udp -j shellcrash_mark_out 2>/dev/null
+    fi
+    #redir
+    $iptable -t nat -D PREROUTING -p tcp -d 198.18.0.0/15 -j shellcrash 2>/dev/null
+    $iptable -t nat -D OUTPUT -p tcp -d 198.18.0.0/15 -j shellcrash_out 2>/dev/null
+    #vm_dns
+    $iptable -t nat -D PREROUTING -p tcp --dport 53 -j shellcrash_vm_dns 2>/dev/null
+    $iptable -t nat -D PREROUTING -p udp --dport 53 -j shellcrash_vm_dns 2>/dev/null
+    #vm_redir
+    $iptable -t nat -D PREROUTING -p tcp -d 198.18.0.0/15 -j shellcrash_vm 2>/dev/null
+    #TPROXY&tun
+    $iptable -t mangle -D PREROUTING -p tcp -d 198.18.0.0/15 -j shellcrash_mark 2>/dev/null
+    $iptable -t mangle -D PREROUTING -p udp -d 198.18.0.0/15 -j shellcrash_mark 2>/dev/null
+    $iptable -t mangle -D OUTPUT -p tcp -d 198.18.0.0/15 -j shellcrash_mark_out 2>/dev/null
+    $iptable -t mangle -D OUTPUT -p udp -d 198.18.0.0/15 -j shellcrash_mark_out 2>/dev/null
+    $iptable -t mangle -D PREROUTING -m mark --mark $fwmark -p tcp -j TPROXY --on-port $tproxy_port 2>/dev/null
+    $iptable -t mangle -D PREROUTING -m mark --mark $fwmark -p udp -j TPROXY --on-port $tproxy_port 2>/dev/null
+    #tun
+    $iptable -D FORWARD -o utun -j ACCEPT 2>/dev/null
+    #屏蔽QUIC
+    [ "$dns_mod" != "fake-ip" ] && [ "$cn_ip_route" != "OFF" ] && set_cn_ip='-m set ! --match-set cn_ip dst'
+    $iptable -D INPUT -p udp --dport 443 $set_cn_ip -j REJECT 2>/dev/null
+    $iptable -D FORWARD -p udp --dport 443 -o utun $set_cn_ip -j REJECT 2>/dev/null
+    #公网访问
+    $iptable -D INPUT -i lo -j ACCEPT 2>/dev/null
+    for ip in $host_ipv4; do
+        $iptable -D INPUT -s $ip -j ACCEPT 2>/dev/null
+    done
+    $iptable -D INPUT -p tcp -m multiport --dports "$accept_ports" -j ACCEPT 2>/dev/null
+    $iptable -D INPUT -p udp -m multiport --dports "$accept_ports" -j ACCEPT 2>/dev/null
+    $iptable -D INPUT -p tcp -m multiport --dports "$mix_port,$db_port" -j REJECT 2>/dev/null
+    $iptable -D INPUT -p udp -m multiport --dports "$mix_port,$db_port" -j REJECT 2>/dev/null
+    #清理shellcrash自建表
+    for text in shellcrash_dns shellcrash shellcrash_out shellcrash_dns_out shellcrash_vm shellcrash_vm_dns; do
+        $iptable -t nat -F "$text" 2>/dev/null
+        $iptable -t nat -X "$text" 2>/dev/null
+    done
+    for text in shellcrash_mark shellcrash_mark_out; do
+        $iptable -t mangle -F "$text" 2>/dev/null
+        $iptable -t mangle -X "$text" 2>/dev/null
+    done
 }
 #重置ipv6规则
 ckcmd ip6tables && {
-	ckcmd ip6tables && ip6tables -h | grep -q '\-w' && ip6table='ip6tables -w' || ip6table=ip6tables
-	#dns
-	$ip6table -t nat -D PREROUTING -p tcp --dport 53 -j shellcrashv6_dns 2>/dev/null
-	$ip6table -t nat -D PREROUTING -p udp --dport 53 -j shellcrashv6_dns 2>/dev/null
-	#redir
-	$ip6table -t nat -D PREROUTING -p tcp $ports -j shellcrashv6 2>/dev/null
-	$ip6table -t nat -D PREROUTING -p tcp -d fc00::/16 -j shellcrashv6 2>/dev/null
-	$ip6table -t nat -D OUTPUT -p tcp $ports -j shellcrashv6_out 2>/dev/null
-	$ip6table -t nat -D OUTPUT -p tcp -d fc00::/16 -j shellcrashv6_out 2>/dev/null
-	$ip6table -D INPUT -p tcp --dport 53 -j REJECT 2>/dev/null
-	$ip6table -D INPUT -p udp --dport 53 -j REJECT 2>/dev/null
-	#mark
-	$ip6table -t mangle -D PREROUTING -p tcp $ports -j shellcrashv6_mark 2>/dev/null
-	$ip6table -t mangle -D PREROUTING -p udp $ports -j shellcrashv6_mark 2>/dev/null
-	$ip6table -t mangle -D PREROUTING -p tcp -d fc00::/16 -j shellcrashv6_mark 2>/dev/null
-	$ip6table -t mangle -D PREROUTING -p udp -d fc00::/16 -j shellcrashv6_mark 2>/dev/null
-	$ip6table -t mangle -D OUTPUT -p tcp $ports -j shellcrashv6_mark_out 2>/dev/null
-	$ip6table -t mangle -D OUTPUT -p udp $ports -j shellcrashv6_mark_out 2>/dev/null
-	$ip6table -t mangle -D OUTPUT -p tcp -d fc00::/16 -j shellcrashv6_mark_out 2>/dev/null
-	$ip6table -t mangle -D OUTPUT -p udp -d fc00::/16 -j shellcrashv6_mark_out 2>/dev/null
-	$ip6table -D INPUT -p udp --dport 443 $set_cn_ip -j REJECT 2>/dev/null
-	$ip6table -t mangle -D PREROUTING -m mark --mark $fwmark -p tcp -j TPROXY --on-port $tproxy_port 2>/dev/null
-	$ip6table -t mangle -D PREROUTING -m mark --mark $fwmark -p udp -j TPROXY --on-port $tproxy_port 2>/dev/null
-	#tun
-	$ip6table -D FORWARD -o utun -j ACCEPT 2>/dev/null
-	#屏蔽QUIC
-	[ "$dns_mod" != "fake-ip" ] && [ "$cn_ip_route" != "OFF" ] && set_cn_ip6='-m set ! --match-set cn_ip6 dst'
-	$ip6table -D INPUT -p udp --dport 443 $set_cn_ip6 -j REJECT 2>/dev/null
-	$ip6table -D FORWARD -p udp --dport 443 -o utun $set_cn_ip6 -j REJECT 2>/dev/null
-	#公网访问
-	$ip6table -D INPUT -i lo -j ACCEPT 2>/dev/null
-	for ip in $host_ipv6; do
-		$ip6table -D INPUT -s $ip -j ACCEPT 2>/dev/null
-	done
-	$ip6table -D INPUT -p tcp -m multiport --dports "$accept_ports" -j ACCEPT 2>/dev/null
-	$ip6table -D INPUT -p udp -m multiport --dports "$accept_ports" -j ACCEPT 2>/dev/null
-	$ip6table -D INPUT -p tcp -m multiport --dports "$mix_port,$db_port" -j REJECT 2>/dev/null
-	$ip6table -D INPUT -p udp -m multiport --dports "$mix_port,$db_port" -j REJECT 2>/dev/null
-	#清理shellcrash自建表
-	for text in shellcrashv6_dns shellcrashv6 shellcrashv6_out; do
-		$ip6table -t nat -F "$text" 2>/dev/null
-		$ip6table -t nat -X "$text" 2>/dev/null
-	done
-	for text in shellcrashv6_mark shellcrashv6_mark_out; do
-		$ip6table -t mangle -F "$text" 2>/dev/null
-		$ip6table -t mangle -X "$text" 2>/dev/null
-	done
-	$ip6table -t mangle -F shellcrashv6_mark 2>/dev/null
-	$ip6table -t mangle -X shellcrashv6_mark 2>/dev/null
+    ckcmd ip6tables && ip6tables -h | grep -q '\-w' && ip6table='ip6tables -w' || ip6table=ip6tables
+    #dns
+    $ip6table -t nat -D PREROUTING -p tcp --dport 53 -j shellcrashv6_dns 2>/dev/null
+    $ip6table -t nat -D PREROUTING -p udp --dport 53 -j shellcrashv6_dns 2>/dev/null
+    if [ -n "$ports" ]; then
+        clean_ports=$(echo "$multiport" | sed 's/ //g')
+        echo "$clean_ports" | awk -F, '{
+            for(i=1; i<=NF; i+=9) {
+                group=""; for(j=i; j<i+9 && j<=NF; j++) group=(group == "" ? $j : group "," $j)
+                print group
+            }
+        }' | while read -r port_group; do
+            if [ -n "$port_group" ]; then
+                $ip6table -t nat -D PREROUTING -p tcp -m multiport --dports "$port_group" -j shellcrashv6 2>/dev/null
+                $ip6table -t nat -D OUTPUT -p tcp -m multiport --dports "$port_group" -j shellcrashv6_out 2>/dev/null
+                $ip6table -t mangle -D PREROUTING -p tcp -m multiport --dports "$port_group" -j shellcrashv6_mark 2>/dev/null
+                $ip6table -t mangle -D PREROUTING -p udp -m multiport --dports "$port_group" -j shellcrashv6_mark 2>/dev/null
+                $ip6table -t mangle -D OUTPUT -p tcp -m multiport --dports "$port_group" -j shellcrashv6_mark_out 2>/dev/null
+                $ip6table -t mangle -D OUTPUT -p udp -m multiport --dports "$port_group" -j shellcrashv6_mark_out 2>/dev/null
+            fi
+        done
+    else
+        $ip6table -t nat -D PREROUTING -p tcp -j shellcrashv6 2>/dev/null
+        $ip6table -t nat -D OUTPUT -p tcp -j shellcrashv6_out 2>/dev/null
+        $ip6table -t mangle -D PREROUTING -p tcp -j shellcrashv6_mark 2>/dev/null
+        $ip6table -t mangle -D PREROUTING -p udp -j shellcrashv6_mark 2>/dev/null
+        $ip6table -t mangle -D OUTPUT -p tcp -j shellcrashv6_mark_out 2>/dev/null
+        $ip6table -t mangle -D OUTPUT -p udp -j shellcrashv6_mark_out 2>/dev/null
+    fi
+    #redir
+    $ip6table -t nat -D PREROUTING -p tcp -d fc00::/16 -j shellcrashv6 2>/dev/null
+    $ip6table -t nat -D OUTPUT -p tcp -d fc00::/16 -j shellcrashv6_out 2>/dev/null
+    $ip6table -D INPUT -p tcp --dport 53 -j REJECT 2>/dev/null
+    $ip6table -D INPUT -p udp --dport 53 -j REJECT 2>/dev/null
+    #mark
+    $ip6table -t mangle -D PREROUTING -p tcp -d fc00::/16 -j shellcrashv6_mark 2>/dev/null
+    $ip6table -t mangle -D PREROUTING -p udp -d fc00::/16 -j shellcrashv6_mark 2>/dev/null
+    $ip6table -t mangle -D OUTPUT -p tcp -d fc00::/16 -j shellcrashv6_mark_out 2>/dev/null
+    $ip6table -t mangle -D OUTPUT -p udp -d fc00::/16 -j shellcrashv6_mark_out 2>/dev/null
+    $ip6table -D INPUT -p udp --dport 443 $set_cn_ip -j REJECT 2>/dev/null
+    $ip6table -t mangle -D PREROUTING -m mark --mark $fwmark -p tcp -j TPROXY --on-port $tproxy_port 2>/dev/null
+    $ip6table -t mangle -D PREROUTING -m mark --mark $fwmark -p udp -j TPROXY --on-port $tproxy_port 2>/dev/null
+    #tun
+    $ip6table -D FORWARD -o utun -j ACCEPT 2>/dev/null
+    #屏蔽QUIC
+    [ "$dns_mod" != "fake-ip" ] && [ "$cn_ip_route" != "OFF" ] && set_cn_ip6='-m set ! --match-set cn_ip6 dst'
+    $ip6table -D INPUT -p udp --dport 443 $set_cn_ip6 -j REJECT 2>/dev/null
+    $ip6table -D FORWARD -p udp --dport 443 -o utun $set_cn_ip6 -j REJECT 2>/dev/null
+    #公网访问
+    $ip6table -D INPUT -i lo -j ACCEPT 2>/dev/null
+    for ip in $host_ipv6; do
+        $ip6table -D INPUT -s $ip -j ACCEPT 2>/dev/null
+    done
+    $ip6table -D INPUT -p tcp -m multiport --dports "$accept_ports" -j ACCEPT 2>/dev/null
+    $ip6table -D INPUT -p udp -m multiport --dports "$accept_ports" -j ACCEPT 2>/dev/null
+    $ip6table -D INPUT -p tcp -m multiport --dports "$mix_port,$db_port" -j REJECT 2>/dev/null
+    $ip6table -D INPUT -p udp -m multiport --dports "$mix_port,$db_port" -j REJECT 2>/dev/null
+    #清理shellcrash自建表
+    for text in shellcrashv6_dns shellcrashv6 shellcrashv6_out; do
+        $ip6table -t nat -F "$text" 2>/dev/null
+        $ip6table -t nat -X "$text" 2>/dev/null
+    done
+    for text in shellcrashv6_mark shellcrashv6_mark_out; do
+        $ip6table -t mangle -F "$text" 2>/dev/null
+        $ip6table -t mangle -X "$text" 2>/dev/null
+    done
+    $ip6table -t mangle -F shellcrashv6_mark 2>/dev/null
+    $ip6table -t mangle -X shellcrashv6_mark 2>/dev/null
 }
 #清理ipset规则
 ipset destroy cn_ip >/dev/null 2>&1

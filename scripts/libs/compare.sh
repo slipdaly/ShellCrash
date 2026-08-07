@@ -3,7 +3,7 @@ compare() { #对比文件
         return 1
     elif ckcmd cmp; then
         cmp -s "$1" "$2"
-		return $?
+        return $?
     else
         [ "$(cat "$1")" = "$(cat "$2")" ] && return 0 || return 1
     fi

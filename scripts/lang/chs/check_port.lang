@@ -1,0 +1,3 @@
+CHECK_PORT_RANGE_ERR="输入错误！请输入正确的数值(1-65535)！"
+CHECK_PORT_DUP_ERR="输入错误！请不要输入重复的端口！"
+CHECK_PORT_OCCUPIED_ERR="当前端口已被其他进程占用，请重新输入！"

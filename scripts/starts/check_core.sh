@@ -5,7 +5,7 @@
 
 check_core() { #检查及下载内核文件
     [ -n "$(find --help 2>&1 | grep -o size)" ] && find_para=' -size +2000'             #find命令兼容
-	[ -z "$(find "$TMPDIR"/CrashCore $find_para 2>/dev/null)" ] && core_find
+    [ -z "$(find "$TMPDIR"/CrashCore $find_para 2>/dev/null)" ] && core_find
     [ ! -f "$TMPDIR"/CrashCore ] && {
         logger "未找到【$crashcore】核心，正在下载！" 33
         [ -z "$cpucore" ] && . "$CRASHDIR"/libs/check_cpucore.sh && check_cpucore

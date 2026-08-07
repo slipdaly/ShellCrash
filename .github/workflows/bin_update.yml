@@ -17,6 +17,10 @@ jobs:
         fetch-depth: 1
         persist-credentials: false   # 禁用默认凭据（我们用 token push）
 
+    - name: Fetch master and dev refs
+      run: |
+        git fetch origin master dev
+
     - name: Apt Update & Update CA
       env:
         DEBIAN_FRONTEND: noninteractive
@@ -135,6 +139,12 @@ jobs:
          
         sed -i "s/GeoIP_v=.*/GeoIP_v=$(date '+%Y%m%d')/" version
         echo 数据库及根证书文件更新完成！
+
+    - name: Sync master/dev files into update branch
+      run: |
+        # 只同步文件内容，不带任何 git 状态
+        git archive --format=tar origin/master ShellCrash.tar.gz version | tar -x -C .
+        git archive --format=tar origin/dev install.sh install_en.sh public rules | tar -x -C .
 
     - name: Rebuild update branch with no history
       run: |

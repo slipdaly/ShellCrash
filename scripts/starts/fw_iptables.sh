@@ -37,11 +37,12 @@ start_ipt_route() { #iptables-route通用工具
     done
     [ "$firewall_area" = 5 ] && "$1" $w -t "$2" -A "$4" -s $bypass_host -j RETURN
     [ -z "$ports" ] && {
-		"$1" $w -t "$2" -A "$4" -p tcp -m multiport --dports "$mix_port,$redir_port,$tproxy_port" -j RETURN
-		"$1" $w -t "$2" -A "$4" -p udp -m multiport --dports "$mix_port,$redir_port,$tproxy_port" -j RETURN
-	}
+        "$1" $w -t "$2" -A "$4" -p tcp -m multiport --dports "$mix_port,$redir_port,$tproxy_port" -j RETURN
+        "$1" $w -t "$2" -A "$4" -p udp -m multiport --dports "$mix_port,$redir_port,$tproxy_port" -j RETURN
+    }
     #跳过目标保留地址及目标本机网段
     for ip in $HOST_IP $RESERVED_IP; do
+        [ "$ip" = "default" ] && continue
         "$1" $w -t "$2" -A "$4" -d $ip -j RETURN
     done
     #绕过CN_IP
@@ -70,13 +71,29 @@ start_ipt_route() { #iptables-route通用工具
                     "$1" $w -t "$2" -A "$4" -p "$5" -s $ip -j $JUMP
                 done
         else
-            for ip in $HOST_IP; do #仅限指定网段流量
+            for ip in $HOST_IP; do #仅限指定网段流量 (已修复 default 报错)
+                [ "$ip" = "default" ] && continue
                 "$1" $w -t "$2" -A "$4" -p "$5" -s $ip -j $JUMP
             done
         fi
         #将所在链指定流量指向shellcrash表
-        "$1" $w -t "$2" -I "$3" -p "$5" $ports -j "$4"
-        [ "$dns_mod" = "mix" -o "$dns_mod" = "fake-ip" ] && [ "$common_ports" = "ON" ] && [ "$1" = iptables ] && "$1" $w -t "$2" -I "$3" -p "$5" -d 28.0.0.0/8 -j "$4"
+        if [ -n "$ports" ]; then
+            clean_ports=$(echo "$multiport" | sed 's/ //g')
+            echo "$clean_ports" | awk -F, '{
+                for(i=1; i<=NF; i+=9) {
+                    group=""
+                    for(j=i; j<i+9 && j<=NF; j++) {
+                        group=(group == "" ? $j : group "," $j)
+                    }
+                    print group
+                }
+            }' | while read -r port_group; do
+                [ -n "$port_group" ] && "$1" $w -t "$2" -I "$3" -p "$5" -m multiport --dports "$port_group" -j "$4"
+            done
+        else
+            "$1" $w -t "$2" -I "$3" -p "$5" -j "$4"
+        fi
+        [ "$dns_mod" = "mix" -o "$dns_mod" = "fake-ip" ] && [ "$common_ports" = "ON" ] && [ "$1" = iptables ] && "$1" $w -t "$2" -I "$3" -p "$5" -d 198.18.0.0/15 -j "$4"
         [ "$dns_mod" = "mix" -o "$dns_mod" = "fake-ip" ] && [ "$common_ports" = "ON" ] && [ "$1" = ip6tables ] && "$1" $w -t "$2" -I "$3" -p "$5" -d fc00::/16 -j "$4"
     }
     [ "$5" = "tcp" -o "$5" = "all" ] && proxy_set "$1" "$2" "$3" "$4" tcp
@@ -128,7 +145,8 @@ start_ipt_dns() { #iptables-dns通用工具
                 "$1" $w -t nat -A "$3" -p udp -s $ip -j REDIRECT --to-ports "$dns_redir_port"
             done
     else
-        for ip in $HOST_IP; do #仅限指定网段流量
+        for ip in $HOST_IP; do #仅限指定网段流量 (已修复 default 报错)
+            [ "$ip" = "default" ] && continue
             "$1" $w -t nat -A "$3" -p tcp -s $ip -j REDIRECT --to-ports "$dns_redir_port"
             "$1" $w -t nat -A "$3" -p udp -s $ip -j REDIRECT --to-ports "$dns_redir_port"
         done
@@ -141,41 +159,41 @@ start_ipt_dns() { #iptables-dns通用工具
     "$1" $w -t nat -I "$2" -p udp --dport 53 -j "$3"
 }
 start_ipt_wan() { #iptables公网防火墙
-	ipt_wan_accept(){
-		$iptable -I INPUT -p "$1" -m multiport --dports "$accept_ports" -j ACCEPT
-		ckcmd ip6tables && $ip6table -I INPUT -p "$1" -m multiport --dports "$accept_ports" -j ACCEPT
-	}
-	ipt_wan_reject(){
-		$iptable -I INPUT -p "$1" -m multiport --dports "$reject_ports" -j REJECT
-		ckcmd ip6tables && $ip6table -I INPUT -p "$1" -m multiport --dports "$reject_ports" -j REJECT
-	}
-	#端口拦截
-	reject_ports="$mix_port,$db_port"
-	ipt_wan_reject tcp
-	ipt_wan_reject udp
-	#端口放行
-	[ -f "$CRASHDIR"/configs/gateway.cfg ] && . "$CRASHDIR"/configs/gateway.cfg
-	accept_ports=$(echo "$fw_wan_ports,$vms_port,$sss_port" | sed "s/,,/,/g ;s/^,// ;s/,$//")
+    ipt_wan_accept(){
+        $iptable -I INPUT -p "$1" -m multiport --dports "$accept_ports" -j ACCEPT
+        ckcmd ip6tables && $ip6table -I INPUT -p "$1" -m multiport --dports "$accept_ports" -j ACCEPT
+    }
+    ipt_wan_reject(){
+        $iptable -I INPUT -p "$1" -m multiport --dports "$reject_ports" -j REJECT
+        ckcmd ip6tables && $ip6table -I INPUT -p "$1" -m multiport --dports "$reject_ports" -j REJECT
+    }
+    #端口拦截
+    reject_ports="$mix_port,$db_port"
+    ipt_wan_reject tcp
+    ipt_wan_reject udp
+    #端口放行
+    [ -f "$CRASHDIR"/configs/gateway.cfg ] && . "$CRASHDIR"/configs/gateway.cfg
+    accept_ports=$(echo "$fw_wan_ports,$vms_port,$sss_port" | sed "s/,,/,/g ;s/^,// ;s/,$//")
     [ -n "$accept_ports" ] && {
-		ipt_wan_accept tcp
-		ipt_wan_accept udp
-	}
-	#局域网请求放行
-	for ip in $host_ipv4; do
-		$iptable -I INPUT -s $ip -j ACCEPT
-	done
-	ckcmd ip6tables && for ip in $host_ipv6; do
-		$ip6table -I INPUT -s $ip -j ACCEPT
-	done
-	#本机请求全放行
-	$iptable -I INPUT -i lo -j ACCEPT
-	ckcmd ip6tables && $ip6table -I INPUT -i lo -j ACCEPT
+        ipt_wan_accept tcp
+        ipt_wan_accept udp
+    }
+    #局域网请求放行
+    for ip in $host_ipv4; do
+        $iptable -I INPUT -s $ip -j ACCEPT
+    done
+    ckcmd ip6tables && for ip in $host_ipv6; do
+        $ip6table -I INPUT -s $ip -j ACCEPT
+    done
+    #本机请求全放行
+    $iptable -I INPUT -i lo -j ACCEPT
+    ckcmd ip6tables && $ip6table -I INPUT -i lo -j ACCEPT
 }
 start_iptables() { #iptables配置总入口
     #启动公网访问防火墙
     [ "$fw_wan" != OFF ] && start_ipt_wan
     #分模式设置流量劫持
-    [ "$redir_mod" = "Redir模式" -o "$redir_mod" = "混合模式" ] && {
+    [ "$redir_mod" = "Redir" -o "$redir_mod" = "Mix" ] && {
         JUMP="REDIRECT --to-ports $redir_port" #跳转劫持的具体命令
         [ "$lan_proxy" = true ] && {
             start_ipt_route iptables nat PREROUTING shellcrash tcp #ipv4-局域网tcp转发
@@ -198,7 +216,7 @@ start_iptables() { #iptables配置总入口
             }
         }
     }
-    [ "$redir_mod" = "Tproxy模式" ] && {
+    [ "$redir_mod" = "Tproxy" ] && {
         modprobe xt_TPROXY >/dev/null 2>&1
         JUMP="TPROXY --on-port $tproxy_port --tproxy-mark $fwmark" #跳转劫持的具体命令
         if $iptable -j TPROXY -h 2>/dev/null | grep -q '\--on-port'; then
@@ -235,14 +253,14 @@ start_iptables() { #iptables配置总入口
             fi
         }
     }
-    [ "$redir_mod" = "Tun模式" -o "$redir_mod" = "混合模式" -o "$redir_mod" = "T&U旁路转发" -o "$redir_mod" = "TCP旁路转发" ] && {
+    [ "$redir_mod" = "Tun" -o "$redir_mod" = "Mix" -o "$redir_mod" = "T&U旁路转发" -o "$redir_mod" = "TCP旁路转发" ] && {
         JUMP="MARK --set-mark $fwmark" #跳转劫持的具体命令
-        [ "$redir_mod" = "Tun模式" -o "$redir_mod" = "T&U旁路转发" ] && protocol=all
-        [ "$redir_mod" = "混合模式" ] && protocol=udp
+        [ "$redir_mod" = "Tun" -o "$redir_mod" = "T&U旁路转发" ] && protocol=all
+        [ "$redir_mod" = "Mix" ] && protocol=udp
         [ "$redir_mod" = "TCP旁路转发" ] && protocol=tcp
         if $iptable -j MARK -h 2>/dev/null | grep -q '\--set-mark'; then
             [ "$lan_proxy" = true ] && {
-                [ "$redir_mod" = "Tun模式" -o "$redir_mod" = "混合模式" ] && $iptable -I FORWARD -o utun -j ACCEPT
+                [ "$redir_mod" = "Tun" -o "$redir_mod" = "Mix" ] && $iptable -I FORWARD -o utun -j ACCEPT
                 start_ipt_route iptables mangle PREROUTING shellcrash_mark $protocol
             }
             [ "$local_proxy" = true ] && start_ipt_route iptables mangle OUTPUT shellcrash_mark_out $protocol
@@ -252,7 +270,7 @@ start_iptables() { #iptables配置总入口
         [ "$ipv6_redir" = "ON" ] && [ "$crashcore" != clashpre ] && {
             if $ip6table -j MARK -h 2>/dev/null | grep -q '\--set-mark'; then
                 [ "$lan_proxy" = true ] && {
-                    [ "$redir_mod" = "Tun模式" -o "$redir_mod" = "混合模式" ] && $ip6table -I FORWARD -o utun -j ACCEPT
+                    [ "$redir_mod" = "Tun" -o "$redir_mod" = "Mix" ] && $ip6table -I FORWARD -o utun -j ACCEPT
                     start_ipt_route ip6tables mangle PREROUTING shellcrashv6_mark $protocol
                 }
                 [ "$local_proxy" = true ] && start_ipt_route ip6tables mangle OUTPUT shellcrashv6_mark_out $protocol
@@ -261,7 +279,8 @@ start_iptables() { #iptables配置总入口
             fi
         }
     }
-    [ "$vm_redir" = "ON" ] && [ -n "$$vm_ipv4" ] && {
+    # 修复了原本双刀号 $$vm_ipv4 会变为进程 PID_ipv4 的语法错误问题
+    [ "$vm_redir" = "ON" ] && [ -n "$vm_ipv4" ] && {
         JUMP="REDIRECT --to-ports $redir_port"                    #跳转劫持的具体命令
         start_ipt_dns iptables PREROUTING shellcrash_vm_dns       #ipv4-局域网dns转发
         start_ipt_route iptables nat PREROUTING shellcrash_vm tcp #ipv4-局域网tcp转发
@@ -279,16 +298,16 @@ start_iptables() { #iptables配置总入口
         [ "$local_proxy" = true ] && start_ipt_dns iptables OUTPUT shellcrash_dns_out #ipv4-本机dns转发
     }
     #屏蔽QUIC
-    [ "$quic_rj" = 'ON' -a "$lan_proxy" = true -a "$redir_mod" != "Redir模式" ] && {
+    [ "$quic_rj" = 'ON' -a "$lan_proxy" = true -a "$redir_mod" != "Redir" ] && {
         [ "$dns_mod" != "fake-ip" -a "$cn_ip_route" = "ON" ] && {
             set_cn_ip='-m set ! --match-set cn_ip dst'
             set_cn_ip6='-m set ! --match-set cn_ip6 dst'
         }
-        [ "$redir_mod" = "Tun模式" -o "$redir_mod" = "混合模式" ] && {
+        [ "$redir_mod" = "Tun" -o "$redir_mod" = "Mix" ] && {
             $iptable -I FORWARD -p udp --dport 443 -o utun $set_cn_ip -j REJECT >/dev/null 2>&1
             $ip6table -I FORWARD -p udp --dport 443 -o utun $set_cn_ip6 -j REJECT >/dev/null 2>&1
         }
-        [ "$redir_mod" = "Tproxy模式" ] && {
+        [ "$redir_mod" = "Tproxy" ] && {
             $iptable -I INPUT -p udp --dport 443 $set_cn_ip -j REJECT >/dev/null 2>&1
             $ip6table -I INPUT -p udp --dport 443 $set_cn_ip6 -j REJECT >/dev/null 2>&1
         }

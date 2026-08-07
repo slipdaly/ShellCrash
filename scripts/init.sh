@@ -17,13 +17,16 @@
 [ -f "/data/etc/crontabs/root" ] && systype=mi_snapshot #小米设备
 [ -w "/var/mnt/cfg/firewall" ] && systype=ng_snapshot   #NETGEAR设备
 #容器内环境
-grep -qE '/(docker|lxc|kubepods|crio|containerd)/' /proc/1/cgroup || [ -f /run/.containerenv ] || [ -f /.dockerenv ] && systype='container'
+grep -qE '/(docker|lxc|kubepods|crio|containerd)/' /proc/1/cgroup 2>/dev/null || [ -f /run/.containerenv ] || [ -f /.dockerenv ] && systype='container'
 #检查环境变量
 [ "$systype" = 'container' ] && CRASHDIR='/etc/ShellCrash'
 [ -z "$CRASHDIR" ] && [ -n "$clashdir" ] && CRASHDIR="$clashdir"
 [ -z "$CRASHDIR" ] && [ -d /tmp/SC_tmp ] && . /tmp/SC_tmp/menus/set_crashdir.sh && set_crashdir
+CRASHDIR=$(echo "$CRASHDIR" | sed 's#/*$##') #删除末尾的/
+TASKCFGDIR="$CRASHDIR"/configs/task
 #移动文件
 mkdir -p "$CRASHDIR"
+mkdir -p "$TASKCFGDIR"
 rm -rf /tmp/SC_tmp/menus/set_crashdir.sh
 mv -f /tmp/SC_tmp/* "$CRASHDIR" 2>/dev/null
 ##############################
@@ -37,11 +40,11 @@ mkdir -p "$CRASHDIR"/configs
 #判断系统类型写入不同的启动文件
 [ -w /usr/lib/systemd/system ] && sysdir=/usr/lib/systemd/system
 [ -w /etc/systemd/system ] && sysdir=/etc/systemd/system
-if [ -f /etc/rc.common -a "$(cat /proc/1/comm)" = "procd" ]; then
+if [ -f /etc/rc.common -a "$(cat /proc/1/comm 2>/dev/null)" = "procd" ]; then
     #设为init.d方式启动
     cp -f "$CRASHDIR"/starts/shellcrash.procd /etc/init.d/shellcrash
     chmod 755 /etc/init.d/shellcrash
-elif [ -n "$sysdir" -a "$USER" = "root" -a "$(cat /proc/1/comm)" = "systemd" ]; then
+elif [ -n "$sysdir" -a "$USER" = "root" -a "$(cat /proc/1/comm 2>/dev/null)" = "systemd" ]; then
     #创建shellcrash用户
     userdel shellcrash 2>/dev/null
     sed -i '/0:7890/d' /etc/passwd
@@ -56,7 +59,7 @@ elif [ -n "$sysdir" -a "$USER" = "root" -a "$(cat /proc/1/comm)" = "systemd" ]; 
     mv -f "$CRASHDIR"/starts/shellcrash.service "$sysdir"/shellcrash.service 2>/dev/null
     sed -i "s%/etc/ShellCrash%$CRASHDIR%g" "$sysdir"/shellcrash.service
     systemctl daemon-reload
-	rm -rf "$CRASHDIR"/starts/shellcrash.procd
+    rm -rf "$CRASHDIR"/starts/shellcrash.procd
 elif rc-status -r >/dev/null 2>&1; then
     #设为openrc方式启动
     mv -f "$CRASHDIR"/starts/shellcrash.openrc /etc/init.d/shellcrash
@@ -65,7 +68,7 @@ elif rc-status -r >/dev/null 2>&1; then
 else
     #设为保守模式启动
     setconfig start_old 已开启
-	rm -rf "$CRASHDIR"/starts/shellcrash.procd
+    rm -rf "$CRASHDIR"/starts/shellcrash.procd
 fi
 rm -rf "$CRASHDIR"/starts/shellcrash.service
 rm -rf "$CRASHDIR"/starts/shellcrash.openrc
@@ -81,11 +84,8 @@ done
 setconfig versionsh_l $version
 #生成用于执行启动服务的变量文件
 [ ! -f "$CRASHDIR"/configs/command.env ] && {
-    TMPDIR='/tmp/ShellCrash'
-    BINDIR="$CRASHDIR"
-    touch "$CRASHDIR"/configs/command.env
-    setconfig TMPDIR "$TMPDIR" "$CRASHDIR"/configs/command.env
-    setconfig BINDIR "$BINDIR" "$CRASHDIR"/configs/command.env
+    echo 'TMPDIR=/tmp/ShellCrash' > "$CRASHDIR"/configs/command.env
+    echo "BINDIR=$CRASHDIR" >> "$CRASHDIR"/configs/command.env
 }
 if [ -n "$(grep 'crashcore=singbox' "$CFG_PATH")" ]; then
     COMMAND='"$TMPDIR/CrashCore run -D $BINDIR -C $TMPDIR/jsons"'
@@ -100,7 +100,10 @@ grep -q 'firewall_mod' "$CRASHDIR/configs/ShellClash.cfg" 2>/dev/null || {
     setconfig firewall_mod $firewall_mod
 }
 #设置更新地址
-[ -n "$url" ] && setconfig update_url $url
+[ -n "$url" ] && setconfig update_url "$url"
+[ -n "$release_type" ] && setconfig release_type "$release_type"
+#设置语言
+[ -n "$language" ] && echo "$language" > "$CRASHDIR/configs/i18n.cfg"
 #设置环境变量
 [ -w /opt/etc/profile ] && [ "$systype" = "Padavan" ] && profile=/opt/etc/profile
 [ -w /jffs/configs/profile.add ] && profile=/jffs/configs/profile.add
@@ -116,10 +119,10 @@ else
 fi
 #梅林/Padavan额外设置
 [ -n "$initdir" ] && {
-	touch "$initdir"
+    touch "$initdir"
     sed -i '/ShellCrash初始化/'d "$initdir"
     echo "$CRASHDIR/starts/general_init.sh & #ShellCrash初始化脚本" >>"$initdir"
-	chmod 755 "$CRASHDIR"/starts/general_init.sh
+    chmod 755 "$CRASHDIR"/starts/general_init.sh
     chmod a+rx "$initdir" 2>/dev/null
     setconfig initdir "$initdir"
 }
@@ -128,14 +131,14 @@ fi
 #镜像化OpenWrt(snapshot)额外设置
 if [ "$systype" = "mi_snapshot" -o "$systype" = "ng_snapshot" ]; then
     chmod 755 "$CRASHDIR"/starts/snapshot_init.sh
-	if [ "$systype" = "mi_snapshot" ];then
-		path="/data/shellcrash_init.sh"
-		sed -i "s#^CRASHDIR=.*#CRASHDIR=$CRASHDIR#" "$CRASHDIR"/starts/snapshot_init.sh
-		mv -f "$CRASHDIR"/starts/snapshot_init.sh "$path"
-		[ ! -f /data/auto_start.sh ] && echo '#用于自定义需要开机启动的功能或者命令，会在开机后自动运行' > /data/auto_start.sh
-	else
-		path="$CRASHDIR"/starts/snapshot_init.sh
-	fi
+    if [ "$systype" = "mi_snapshot" ];then
+        path="/data/shellcrash_init.sh"
+        sed -i "s#^CRASHDIR=.*#CRASHDIR=$CRASHDIR#" "$CRASHDIR"/starts/snapshot_init.sh
+        mv -f "$CRASHDIR"/starts/snapshot_init.sh "$path"
+        [ ! -f /data/auto_start.sh ] && echo '#用于自定义需要开机启动的功能或者命令，会在开机后自动运行' > /data/auto_start.sh
+    else
+        path="$CRASHDIR"/starts/snapshot_init.sh
+    fi
     uci delete firewall.auto_ssh 2>/dev/null
     uci delete firewall.ShellCrash 2>/dev/null
     uci set firewall.ShellCrash=include
@@ -157,15 +160,15 @@ fi
     sed -i "/^PATH=/a\\$CRASHDIR/start.sh init & #ShellCrash初始化脚本" "$dir/asusware.arm/etc/init.d/S50downloadmaster"
 #容器环境额外设置
 [ "$systype" = 'container' ] && {
-	setconfig userguide '1'
-	setconfig crashcore 'meta'
-	setconfig dns_mod 'mix'
-	setconfig firewall_area '1'
-	setconfig firewall_mod 'nftables'
-	setconfig release_type 'master'
-	setconfig start_old 'OFF'
-	echo "$CRASHDIR/menu.sh" >> /etc/profile
-	cat > /usr/bin/crash <<'EOF'
+    setconfig userguide '1'
+    setconfig crashcore 'meta'
+    setconfig dns_mod 'mix'
+    setconfig firewall_area '1'
+    setconfig firewall_mod 'nftables'
+    setconfig release_type 'master'
+    setconfig start_old 'OFF'
+    echo "$CRASHDIR/menu.sh" >> /etc/profile
+    cat > /usr/bin/crash <<'EOF'
 #!/bin/sh
 CRASHDIR=${CRASHDIR:-/etc/ShellCrash}
 export CRASHDIR
@@ -187,8 +190,17 @@ for file in config.yaml.bak user.yaml proxies.yaml proxy-groups.yaml rules.yaml 
     mv -f "$CRASHDIR"/"$file" "$CRASHDIR"/yamls/"$file" 2>/dev/null
 done
 [ ! -L "$CRASHDIR"/config.yaml ] && mv -f "$CRASHDIR"/config.yaml "$CRASHDIR"/yamls/config.yaml 2>/dev/null
-for file in fake_ip_filter mac web_save servers.list fake_ip_filter.list fallback_filter.list singbox_providers.list clash_providers.list; do
+for file in fake_ip_filter mac web_save servers_chs.list servers_en.list fake_ip_filter.list singbox_providers.list clash_providers.list; do
     mv -f "$CRASHDIR"/"$file" "$CRASHDIR"/configs/"$file" 2>/dev/null
+done
+#迁移任务状态文件到新目录
+for file in cron bfstart afstart running affirewall task.user; do
+    mv -f "$CRASHDIR"/"$file" "$TASKCFGDIR"/"$file" 2>/dev/null
+    mv -f "$CRASHDIR"/task/"$file" "$TASKCFGDIR"/"$file" 2>/dev/null
+done
+#修正旧版防火墙注入路径
+for file in /etc/init.d/firewall /etc/init.d/firewall.bak; do
+    [ -f "$file" ] && sed -i "s#$CRASHDIR/task/affirewall#$TASKCFGDIR/affirewall#g" "$file" 2>/dev/null
 done
 #配置文件改名
 mv -f "$CRASHDIR"/configs/ShellClash.cfg "$CFG_PATH" 2>/dev/null
@@ -202,7 +214,7 @@ mv -f "$CRASHDIR"/*.mrs "$CRASHDIR"/ruleset/ 2>/dev/null
 for file in dropbear_rsa_host_key authorized_keys tun.ko ShellDDNS.sh; do
     mv -f "$CRASHDIR"/"$file" "$CRASHDIR"/tools/"$file" 2>/dev/null
 done
-for file in cron task.list; do
+for file in cron task_chs.list task_en.list; do
     mv -f "$CRASHDIR"/"$file" "$CRASHDIR"/task/"$file" 2>/dev/null
 done
 mv -f "$CRASHDIR"/menus/task_cmd.sh "$CRASHDIR"/task/task.sh 2>/dev/null
@@ -213,7 +225,7 @@ sed -i '/shellclash/d' /etc/group
 rm -rf /etc/init.d/clash
 rm -rf "$CRASHDIR"/rules
 [ "$systype" = "mi_snapshot" -a "$CRASHDIR" != '/data/clash' ] && rm -rf /data/clash
-for file in webget.sh misnap_init.sh core.new; do
+for file in webget.sh misnap_init.sh core.new configs/ShellCrash.cfg.bak; do
     rm -f "$CRASHDIR/$file"
 done
 #旧版变量改名
@@ -222,12 +234,13 @@ sed -i "s/clash_v/core_v/g" "$CFG_PATH"
 sed -i "s/clash.meta/meta/g" "$CFG_PATH"
 sed -i "s/ShellClash/ShellCrash/g" "$CFG_PATH"
 sed -i "s/cpucore=armv8/cpucore=arm64/g" "$CFG_PATH"
-sed -i "s/redir_mod=Nft基础/redir_mod=Redir模式/g" "$CFG_PATH"
-sed -i "s/redir_mod=Nft混合/redir_mod=Tproxy模式/g" "$CFG_PATH"
-sed -i "s/redir_mod=Tproxy混合/redir_mod=Tproxy模式/g" "$CFG_PATH"
+sed -i "s/redir_mod=Redir模式/redir_mod=Redir/g" "$CFG_PATH"
+sed -i "s/redir_mod=Tproxy模式/redir_mod=Tproxy/g" "$CFG_PATH"
+sed -i "s/redir_mod=Tun模式/redir_mod=Tun/g" "$CFG_PATH"
+sed -i "s/redir_mod=混合模式/redir_mod=Mix/g" "$CFG_PATH"
 sed -i "s/redir_mod=纯净模式/firewall_area=4/g" "$CFG_PATH"
 #变量统一使用ON/OFF
 sed -i 's/=\(已启用\|已开启\)$/=ON/'  "$CFG_PATH"
 sed -i 's/=\(未启用\|未开启\)$/=OFF/' "$CFG_PATH"
 
-echo -e "\033[32m脚本初始化完成,请输入\033[30;47m $my_alias \033[0;33m命令开始使用！\033[0m"
+printf '\033[32m脚本初始化完成,请输入\033[30;47m %s \033[0;33m命令开始使用！\033[0m\n' "$my_alias"

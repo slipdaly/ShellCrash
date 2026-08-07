@@ -9,12 +9,12 @@ put_save() { #推送面板选择
     fi
 }
 web_restore() { #还原面板选择
-	num=$(cat "$CRASHDIR"/configs/web_save | wc -l)
-	i=1
-	while [ "$i" -le "$num" ]; do
-		group_name=$(awk -F ',' 'NR=="'${i}'" {print $1}' "$CRASHDIR"/configs/web_save | sed 's/ /%20/g')
-		now_name=$(awk -F ',' 'NR=="'${i}'" {print $2}' "$CRASHDIR"/configs/web_save)
-		put_save "http://127.0.0.1:${db_port}/proxies/${group_name}" "{\"name\":\"${now_name}\"}"
-		i=$((i + 1))
-	done
+    num=$(cat "$CRASHDIR"/configs/web_save | wc -l)
+    i=1
+    while [ "$i" -le "$num" ]; do
+        group_name=$(awk -F ',' 'NR=="'${i}'" {print $1}' "$CRASHDIR"/configs/web_save | sed 's/ /%20/g')
+        now_name=$(awk -F ',' 'NR=="'${i}'" {print $2}' "$CRASHDIR"/configs/web_save)
+        put_save "http://127.0.0.1:${db_port}/proxies/${group_name}" "{\"name\":\"${now_name}\"}"
+        i=$((i + 1))
+    done
 }

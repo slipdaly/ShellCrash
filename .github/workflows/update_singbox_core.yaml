@@ -88,7 +88,7 @@ jobs:
           git fetch --tags sekai
           version=$(CGO_ENABLED=0 go run ./cmd/internal/read_tag)
           [ -z "$version" ] &&  version=${{ inputs.tag2 }}
-          version=$(echo $version | sed 's/-reF1nd//')
+          version=$(echo ${version%-*})
           echo version=$version >> $GITHUB_OUTPUT
           if [ -z "$TAGS" ];then
             if [ "$REPO" = 'SagerNet/sing-box' ];then
@@ -208,10 +208,10 @@ jobs:
       - name: Zip core by upx
         if: env.ZIPTYPE == 'upx'
         run: |    
-          wget https://github.com/upx/upx/releases/download/v3.96/upx-3.96-amd64_linux.tar.xz
-          wget https://github.com/upx/upx/releases/download/v3.94/upx-3.94-amd64_linux.tar.xz
-          tar xf upx-3.96-amd64_linux.tar.xz
-          tar xf upx-3.94-amd64_linux.tar.xz
+          for upxv in 3.94 3.96 5.1.0;do
+            wget https://github.com/upx/upx/releases/download/v$upxv/upx-$upxv-amd64_linux.tar.xz
+            tar xf upx-$upxv-amd64_linux.tar.xz
+          done
           for arch in amd64 armv5 armv7 arm64 386 mips-softfloat mipsle-hardfloat mipsle-softfloat;do
             [ ! -f ./tmp/linux-${arch}/sing-box ] && continue
             mv -f ./tmp/linux-${arch}/sing-box ./tmp/singbox-linux-${arch}.upx
@@ -220,12 +220,15 @@ jobs:
               armv5|mips* )
                 ./upx-3.94-amd64_linux/upx --no-lzma ./tmp/singbox-linux-${arch}.upx
               ;;
-              *)
+              armv7|386)
                 ./upx-3.96-amd64_linux/upx --no-lzma ./tmp/singbox-linux-${arch}.upx
+              ;;
+              *)
+                ./upx-5.1.0-amd64_linux/upx ./tmp/singbox-linux-${arch}.upx
               ;;
             esac
           done
-          rm -rf upx-3.9*
+          rm -rf upx-*
          
       - name: Zip core by tar
         if: env.ZIPTYPE == 'tar.gz'
@@ -256,7 +259,7 @@ jobs:
           mkdir -p ./bin/${crashcore}
           mv -f ./tmp/singbox-linux-* ./bin/${crashcore}/
           rm -fr ./tmp
-          [ "${{ inputs.tag6 }}" = tar.gz ] && sed -i "s/${crashcore}_v=.*/${crashcore}_v=${VERSION}/" ./bin/version
+          [ "${{ inputs.tag6 }}" = upx ] && sed -i "s/${crashcore}_v=.*/${crashcore}_v=${VERSION}/" ./bin/version
           git config --global user.email "github-actions[bot]@users.noreply.github.com" && git config --global user.name "github-actions[bot]"
           git add . && git commit -m "更新${crashcore}内核至${VERSION}" || exit 0
           git push

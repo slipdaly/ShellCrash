@@ -1,12 +1,11 @@
 #!/bin/sh
 # Copyright (C) Juewuy
 
-#修饰clash配置文件
-modify_yaml() {
+prepare_clash_base_config() {
     ##########需要变更的配置###########
     [ "$ipv6_dns" != "OFF" ] && dns_v6='true' || dns_v6='false'
     external="external-controller: 0.0.0.0:$db_port"
-    if [ "$redir_mod" = "混合模式" -o "$redir_mod" = "Tun模式" ]; then
+    if [ "$redir_mod" = "Mix" -o "$redir_mod" = "Tun" ]; then
         [ "$crashcore" = 'meta' ] && tun_meta=', device: utun, auto-route: false, auto-detect-interface: false'
         tun="tun: {enable: true, stack: system$tun_meta}"
     else
@@ -15,16 +14,16 @@ modify_yaml() {
     exper='experimental: {ignore-resolve-fail: true, interface-name: en0}'
     #Meta内核专属配置
     [ "$crashcore" = 'meta' ] && {
-        [ "$redir_mod" != "纯净模式" ] && [ -z "$(grep 'PROCESS' "$CRASHDIR"/yamls/*.yaml)" ] && find_process='find-process-mode: "off"'
-		#ecs优化
-		[ "$ecs_subnet" = ON ] && {
-			. "$CRASHDIR"/libs/get_ecsip.sh
-			if [ -n "$ecs_address" ];then
-				dns_fallback=$(echo "$dns_fallback, " | sed "s|, |#ecs-override=true\&ecs=$ecs_address, |g" | sed 's|, $||')
-			else
-				logger "自动获取ecs网段失败！"
-			fi
-		}
+        [ -z "$(grep 'PROCESS' "$CRASHDIR"/yamls/*.yaml)" ] && find_process='find-process-mode: "off"'
+        #ecs优化
+        [ "$ecs_subnet" = ON ] && {
+            . "$CRASHDIR"/libs/get_ecsip.sh
+            if [ -n "$ecs_address" ];then
+                dns_fallback=$(echo "$dns_fallback, " | sed "s|, |#ecs-override=true\&ecs=$ecs_address, |g" | sed 's|, $||')
+            else
+                logger "自动获取ecs网段失败！" 33
+            fi
+        }
     }
     #dns配置
     [ -z "$(cat "$CRASHDIR"/yamls/user.yaml 2>/dev/null | grep '^dns:')" ] && {
@@ -38,7 +37,7 @@ dns:
   default-nameserver: [ $dns_resolver ]
   direct-nameserver: [ $dns_nameserver ]
   enhanced-mode: fake-ip
-  fake-ip-range: 28.0.0.0/8
+  fake-ip-range: 198.18.0.0/15
   fake-ip-range6: fc00::/16
   fake-ip-filter:
 EOF
@@ -48,14 +47,14 @@ EOF
             echo "    - '+.*'" >>"$TMPDIR"/dns.yaml #使用fake-ip模拟redir_host
         fi
         #mix模式fakeip绕过cn
-        [ "$dns_mod" = "mix" ] && echo '    - "rule-set:cn"' >>"$TMPDIR"/dns.yaml && echo '    - "rule-set:cloudflare"' >>"$TMPDIR"/dns.yaml && echo '    - "rule-set:directcus"' >>"$TMPDIR"/dns.yaml
+        [ "$dns_mod" = "mix" ] && echo '    - "rule-set:cn"' >>"$TMPDIR"/dns.yaml
         #mix模式和route模式插入分流设置
         if [ "$dns_mod" = "mix" ] || [ "$dns_mod" = "route" ]; then
             [ "$dns_protect" != "OFF" ] && dns_final="$dns_fallback" || dns_final="$dns_nameserver"
             cat >>"$TMPDIR"/dns.yaml <<EOF
   respect-rules: true
-  nameserver-policy: {'rule-set:cn': [ $dns_nameserver ], 'rule-set:cloudflare': [ $dns_nameserver ], 'rule-set:directcus': [ $dns_nameserver ]}
-  proxy-server-nameserver : [ $dns_resolver ]
+  nameserver-policy: {'rule-set:cn': [ $dns_nameserver ]}
+  proxy-server-nameserver : [ $dns_proxy_server ]
   nameserver: [ $dns_final ]
 EOF
         else
@@ -65,8 +64,11 @@ EOF
         fi
     }
     #域名嗅探配置
-    [ "$sniffer" = "ON" ] && [ "$crashcore" = "meta" ] && sniffer_set="sniffer: {enable: true, parse-pure-ip: true, skip-domain: [Mijia Cloud], sniff: {http: {ports: [80, 8080-8880], override-destination: true}, tls: {ports: [443, 8443]}, quic: {ports: [443, 8443]}}}"
+    [ "$sniffer" = "ON" ] && [ "$crashcore" = "meta" ] && sniffer_set="sniffer: {enable: true, parse-pure-ip: true, skip-domain: ['+.push.apple.com', 'Mijia Cloud'], sniff: {http: {ports: [80, 8080-8880], override-destination: true}, tls: {ports: [443, 8443]}, quic: {ports: [443, 8443]}}}"
     [ "$crashcore" = "clashpre" ] && [ "$dns_mod" = "redir_host" -o "$sniffer" = "ON" ] && exper="experimental: {ignore-resolve-fail: true, interface-name: en0,sniff-tls-sni: true}"
+}
+
+generate_set_and_hosts_yaml() {
     #生成set.yaml
     cat >"$TMPDIR"/set.yaml <<EOF
 mixed-port: $mix_port
@@ -100,18 +102,21 @@ EOF
         if [ "$crashcore" = "meta" ]; then
             echo "  'services.googleapis.cn': services.googleapis.com" >>"$TMPDIR"/hosts.yaml
         fi
-		#加载本机hosts
-		sys_hosts=/etc/hosts
-		[ -f /data/etc/custom_hosts ] && sys_hosts='/etc/hosts /data/etc/custom_hosts'
-		cat $sys_hosts | while read line; do
-			[ -n "$(echo "$line" | grep -oE "([0-9]{1,3}[\.]){3}")" ] &&
-				[ -z "$(echo "$line" | grep -oE '^#')" ] &&
-				hosts_ip=$(echo $line | awk '{print $1}') &&
-				hosts_domain=$(echo $line | awk '{print $2}') &&
-				[ -z "$(cat "$TMPDIR"/hosts.yaml | grep -oE "$hosts_domain")" ] &&
-				echo "  '$hosts_domain': $hosts_ip" >>"$TMPDIR"/hosts.yaml
-		done
+        #加载本机hosts
+        sys_hosts=/etc/hosts
+        [ -f /data/etc/custom_hosts ] && sys_hosts='/etc/hosts /data/etc/custom_hosts'
+        cat $sys_hosts | while read line; do
+            [ -n "$(echo "$line" | grep -oE "([0-9]{1,3}[\.]){3}")" ] &&
+                [ -z "$(echo "$line" | grep -oE '^#')" ] &&
+                hosts_ip=$(echo $line | awk '{print $1}') &&
+                hosts_domain=$(echo $line | awk '{print $2}') &&
+                [ -z "$(cat "$TMPDIR"/hosts.yaml | grep -oE "$hosts_domain")" ] &&
+                echo "  '$hosts_domain': $hosts_ip" >>"$TMPDIR"/hosts.yaml
+        done
     fi
+}
+
+split_and_customize_yaml_parts() {
     #分割配置文件
     yaml_char='proxies proxy-groups proxy-providers rules rule-providers sub-rules listeners'
     for char in $yaml_char; do
@@ -171,24 +176,14 @@ EOF
             IFS="$oldIFS"
         done
     }
+}
+
+add_custom_inbounds_and_rules() {
     #添加自定义入站
-	[ "$vms_service" = ON ] || [ "$sss_service" = ON ] && {
-		. "$CRASHDIR"/configs/gateway.cfg
-		. "$CRASHDIR"/libs/meta_listeners.sh
-	}
-	  #anti-ad广告过滤
-    if grep -q 'anti-ad' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && grep -q "⛔️ 广告拦截" "$TMPDIR"/proxy-groups.yaml; then
-        line_num=$(grep -n -m 1 -v "全球直连" "$TMPDIR"/rules.yaml | cut -d: -f1) && [ -n "$line_num" ] && sed -i "${line_num}i\  - RULE-SET,anti-ad,⛔️ 广告拦截" "$TMPDIR"/rules.yaml
-    fi
-    # 添加cn规则
-    if [ "$cn_ip_route" = OFF ] && grep -q 'cn:' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && grep -q "🎯 全球直连" "$TMPDIR"/proxy-groups.yaml; then
-        # 查找"漏网之鱼"行号，注意中文字符匹配
-        leak_line_num=$(grep -n "漏网之鱼" "$TMPDIR"/rules.yaml | cut -d: -f1)
-        if [ -n "$leak_line_num" ]; then
-            # 在漏网之鱼前一行插入cn规则
-            sed -i "$((leak_line_num))i\  - RULE-SET,cn,🎯 全球直连" "$TMPDIR"/rules.yaml
-        fi
-    fi
+    [ "$vms_service" = ON ] || [ "$sss_service" = ON ] && {
+        . "$CRASHDIR"/configs/gateway.cfg
+        . "$CRASHDIR"/libs/meta_listeners.sh
+    }
     #节点绕过功能支持
     sed -i "/#节点绕过/d" "$TMPDIR"/rules.yaml
     [ "$proxies_bypass" = "ON" ] && {
@@ -204,11 +199,14 @@ EOF
         cat "$TMPDIR"/rules.yaml >>"$TMPDIR"/rules.add
         mv -f "$TMPDIR"/rules.add "$TMPDIR"/rules.yaml
     }
+}
+
+merger_yaml() {
     #mix和route模式生成rule-providers
     [ "$dns_mod" = "mix" ] || [ "$dns_mod" = "route" ] && ! grep -Eq '^[[:space:]]*cn:' "$TMPDIR"/rule-providers.yaml && ! grep -q '^rule-providers' "$CRASHDIR"/yamls/others.yaml 2>/dev/null && {
         space=$(sed -n "1p" "$TMPDIR"/rule-providers.yaml | grep -oE '^ *') #获取空格数
         [ -z "$space" ] && space='  '
-        echo "${space}cn: {type: http, behavior: domain, format: mrs, path: ./ruleset/cn.mrs, url: https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@update/bin/geodata/mrs_geosite_cn.mrs}" >>"$TMPDIR"/rule-providers.yaml
+        echo "${space}cn: {type: http, behavior: domain, format: mrs, path: ./ruleset/cn.mrs, interval: 86400, url: https://testingcf.jsdelivr.net/gh/juewuy/ShellCrash@update/bin/geodata/mrs_geosite_cn.mrs}" >>"$TMPDIR"/rule-providers.yaml
     }
     #对齐rules中的空格
     sed -i 's/^ *-/ -/g' "$TMPDIR"/rules.yaml
@@ -233,6 +231,9 @@ EOF
     done
     #合并完整配置文件
     cut -c 1- "$TMPDIR"/set.yaml $yaml_dns $yaml_hosts $yaml_user $yaml_others $yaml_add >"$TMPDIR"/config.yaml
+}
+
+test_yaml() {
     #测试自定义配置文件
     "$TMPDIR"/CrashCore -t -d "$BINDIR" -f "$TMPDIR"/config.yaml >/dev/null
     if [ "$?" != 0 ]; then
@@ -246,10 +247,24 @@ EOF
         cut -c 1- "$TMPDIR"/set.yaml $yaml_dns $yaml_add >"$TMPDIR"/config.yaml
         sed -i "/#自定义/d" "$TMPDIR"/config.yaml
     fi
+}
+
+finalize_clash_yaml() {
     #建立软连接
     [ ""$TMPDIR"" = ""$BINDIR"" ] || ln -sf "$TMPDIR"/config.yaml "$BINDIR"/config.yaml 2>/dev/null || cp -f "$TMPDIR"/config.yaml "$BINDIR"/config.yaml
     #清理缓存
     for char in $yaml_char set set_bak dns hosts; do
         rm -f "$TMPDIR"/${char}.yaml
     done
+}
+
+#修饰clash配置文件
+modify_yaml() {
+    prepare_clash_base_config
+    generate_set_and_hosts_yaml
+    split_and_customize_yaml_parts
+    add_custom_inbounds_and_rules
+    merger_yaml
+    test_yaml
+    finalize_clash_yaml
 }

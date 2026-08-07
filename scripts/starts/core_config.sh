@@ -6,17 +6,21 @@
 . "$CRASHDIR"/libs/web_get_bin.sh
 . "$CRASHDIR"/libs/compare.sh
 . "$CRASHDIR"/libs/set_config.sh
+. "$CRASHDIR"/libs/logger.sh
+. "$CRASHDIR"/libs/i18n.sh
 
-update_servers() { #更新servers.list
-    get_bin "$TMPDIR"/servers.list public/servers.list
-    [ "$?" = 0 ] && mv -f "$TMPDIR"/servers.list "$CRASHDIR"/configs/servers.list
+load_lang
+
+update_servers() { #更新servers_${i18n}.list
+    get_bin "$TMPDIR"/servers_${i18n}.list public/servers_${i18n}.list
+    [ "$?" = 0 ] && mv -f "$TMPDIR"/servers_${i18n}.list "$CRASHDIR"/configs/servers_${i18n}.list
 }
 gen_ua(){  #自动生成ua
     [ -z "$user_agent" -o "$user_agent" = "auto" ] && {
         if echo "$crashcore" | grep -q 'singbox'; then
-            user_agent="sing-box/singbox/$core_v"
+            user_agent="sing-box/$core_v"
         elif [ "$crashcore" = meta ]; then
-            user_agent="clash.meta/mihomo/$core_v"
+            user_agent="clash.meta/mihomo"
         else
             user_agent="clash"
         fi
@@ -25,28 +29,28 @@ gen_ua(){  #自动生成ua
 }
 get_core_config() { #下载内核配置文件
     [ -z "$rule_link" ] && rule_link=1
-    [ -z "$server_link" ] || [ $server_link -gt $(grep -aE '^4' "$CRASHDIR"/configs/servers.list | wc -l) ] && server_link=1
-    Server=$(grep -aE '^3|^4' "$CRASHDIR"/configs/servers.list | sed -n ""$server_link"p" | awk '{print $3}')
-    Server_ua=$(grep -aE '^4' "$CRASHDIR"/configs/servers.list | sed -n ""$server_link"p" | awk '{print $4}')
-    Config=$(grep -aE '^5' "$CRASHDIR"/configs/servers.list | sed -n ""$rule_link"p" | awk '{print $3}')
+    [ -z "$server_link" ] || [ $server_link -gt $(grep -aE '^4' "$CRASHDIR"/configs/servers_${i18n}.list | wc -l) ] && server_link=1
+    Server=$(grep -aE '^3|^4' "$CRASHDIR"/configs/servers_${i18n}.list | sed -n ""$server_link"p" | awk '{print $3}')
+    Server_ua=$(grep -aE '^4' "$CRASHDIR"/configs/servers_${i18n}.list | sed -n ""$server_link"p" | awk '{print $4}')
+    Config=$(grep -aE '^5' "$CRASHDIR"/configs/servers_${i18n}.list | sed -n ""$rule_link"p" | awk '{print $3}')
     gen_ua
-	#如果传来的是Url链接则合成Https链接，否则直接使用Https链接
+    #如果传来的是Url链接则合成Https链接，否则直接使用Https链接
     if [ -z "$Https" ]; then
         #Urlencord转码处理保留字符
         if ckcmd hexdump;then
-			_Ulr=$(urldecode "$Url")
-      urlencodeUrl="exclude=$(urlencode "$exclude")&include=$(urlencode "$include")&url=$(urlencode "$_Ulr")&config=$(urlencode "$Config")"
-		else
-			urlencodeUrl="exclude=$exclude&include=$include&url=$Url&config=$Config"
-		fi
+            Url=$(echo $Url | sed 's/%26/\&/g')   #处理分隔符
+            urlencodeUrl="exclude=$(urlencode "$exclude")&include=$(urlencode "$include")&url=$(urlencode "$Url")&config=$(urlencode "$Config")"
+        else
+            urlencodeUrl="exclude=$exclude&include=$include&url=$Url&config=$Config"
+        fi
         Https="${Server}/sub?target=${target}&${Server_ua}=${user_agent}&insert=true&new_name=true&scv=true&udp=true&${urlencodeUrl}"
         url_type=true
-	else
-		Https=$(echo $Https | sed 's/\\&/\&/g')   #还原转义
+    else
+        Https=$(echo $Https | sed 's/\\&/\&/g')   #还原转义
     fi
     #输出
     echo "-----------------------------------------------"
-    logger "正在连接服务器获取【$target】配置文件…………"
+    logger "正在连接服务器获取【$target】配置文件…………" 36
     echo -e "链接地址为：\033[4;32m$Https\033[0m"
     echo 可以手动复制该链接到浏览器打开并查看数据是否正常！
     #获取在线config文件
@@ -91,7 +95,7 @@ get_core_config() { #下载内核配置文件
         else
             . "$CRASHDIR"/starts/clash_config_check.sh
         fi
-		check_config
+        check_config
         #如果不同则备份并替换文件
         if [ -s "$core_config" ]; then
             compare "$core_config_new" "$core_config"
