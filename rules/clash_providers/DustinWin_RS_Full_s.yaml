@@ -48,7 +48,7 @@ rule-providers:
     behavior: domain
     format: mrs
     path: ./ruleset/private.mrs
-    url: "https://testingcf.jsdelivr.net/gh//DustinWin/ruleset_geodata@refs/heads/mihomo-ruleset/private.mrs"
+    url: "https://testingcf.jsdelivr.net/gh/DustinWin/ruleset_geodata@mihomo-ruleset/private.mrs"
     interval: 86400
 
   dnsD:
