@@ -47,13 +47,15 @@ EOF
             echo "    - '+.*'" >>"$TMPDIR"/dns.yaml #使用fake-ip模拟redir_host
         fi
         #mix模式fakeip绕过cn
-        [ "$dns_mod" = "mix" ] && echo '    - "rule-set:cn"' >>"$TMPDIR"/dns.yaml
+        #保留这些直连规则集的fake-ip-filter，否则相关域名会拿到fake-ip导致直连异常
+        [ "$dns_mod" = "mix" ] && echo "    - 'rule-set:cn'" >>"$TMPDIR"/dns.yaml && echo "    - 'rule-set:cloudflare'" >>"$TMPDIR"/dns.yaml && echo "    - 'rule-set:directcus'" >>"$TMPDIR"/dns.yaml
         #mix模式和route模式插入分流设置
         if [ "$dns_mod" = "mix" ] || [ "$dns_mod" = "route" ]; then
             [ "$dns_protect" != "OFF" ] && dns_final="$dns_fallback" || dns_final="$dns_nameserver"
             cat >>"$TMPDIR"/dns.yaml <<EOF
   respect-rules: true
-  nameserver-policy: {'rule-set:cn': [ $dns_nameserver ]}
+  #这些规则集需要真实IP参与直连匹配，和上面的fake-ip-filter保持一致
+  nameserver-policy: {'rule-set:cn': [ $dns_nameserver ], 'rule-set:cloudflare': [ $dns_nameserver ], 'rule-set:directcus': [ $dns_nameserver ]}
   proxy-server-nameserver : [ $dns_proxy_server ]
   nameserver: [ $dns_final ]
 EOF

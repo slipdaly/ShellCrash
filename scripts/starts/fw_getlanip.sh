@@ -47,6 +47,11 @@ getlanip() { #获取局域网host地址
     #补全PPPoE/多出口场景的本机WAN源地址，避免本机OUTPUT规则漏匹配
     local_wan_ipv4=$(for target in 1.1.1.1 8.8.8.8 114.114.114.114; do ip route get "$target" 2>/dev/null | grep -Eo 'src [0-9]{1,3}(\.[0-9]{1,3}){3}' | awk '{print $2}'; done | sort -u)
     [ -n "$local_wan_ipv4" ] && local_ipv4=$(echo "$local_ipv4 $local_wan_ipv4" | tr ' ' '\n' | grep -v '^$' | sort -u)
+    #补全PPPoE/多出口场景的本机WAN IPv6源地址，避免本机OUTPUT规则漏匹配
+    #注意：WAN IPv6只放入local_ipv6供OUTPUT使用，不要合并进host_ipv6污染LAN/INPUT规则
+    [ "$ipv6_redir" = "ON" ] && local_wan_ipv6=$(for target in 2001:4860:4860::8888 2606:4700:4700::1111 2400:3200::1; do ip -6 route get "$target" 2>/dev/null | grep -Eo 'src [0-9A-Fa-f:.]+' | awk '{print $2"/128"}'; done | sort -u)
+    local_ipv6="$host_ipv6"
+    [ -n "$local_wan_ipv6" ] && local_ipv6=$(echo "$local_ipv6 $local_wan_ipv6" | tr ' ' '\n' | grep -v '^$' | sort -u)
     #保留地址
     [ -z "$reserve_ipv4" ] && reserve_ipv4="0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 100.64.0.0/10 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16 224.0.0.0/4 240.0.0.0/4"
     [ -z "$reserve_ipv6" ] && reserve_ipv6="::/128 ::1/128 ::ffff:0:0/96 64:ff9b::/96 100::/64 2001::/32 2001:20::/28 2001:db8::/32 2002::/16 fe80::/10 ff00::/8"

@@ -22,7 +22,8 @@ start_ipt_route() { #iptables-route通用工具
     [ "$1" = 'ip6tables' ] && {
         RESERVED_IP=$reserve_ipv6
         HOST_IP=$host_ipv6
-        [ "$3" = 'OUTPUT' ] && HOST_IP="::1 $host_ipv6"
+        #本机IPv6劫持需包含WAN源地址，local_ipv6由fw_getlanip补全；host_ipv6仅保留LAN侧语义
+        [ "$3" = 'OUTPUT' ] && HOST_IP="::1 ${local_ipv6:-$host_ipv6}"
         ip6tables -h | grep -q '\-w' && w='-w' || w=''
     }
     #创建新的shellcrash链表

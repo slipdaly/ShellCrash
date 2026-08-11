@@ -86,7 +86,8 @@ start_nft_route() { #nftables-route通用工具
         HOST_IP6=$(echo $host_ipv6 | sed 's/[[:space:]]\+/, /g')
         add_ip6_route "$1"
     elif [ "$ipv6_redir" = "ON" -a "$1" = 'output' -a \( "$firewall_area" = 2 -o "$firewall_area" = 3 \) ]; then
-        HOST_IP6="::1, $(echo $host_ipv6 | sed 's/[[:space:]]\+/, /g')"
+        #本机IPv6劫持需包含WAN源地址，local_ipv6由fw_getlanip补全；host_ipv6仅保留LAN侧语义
+        HOST_IP6="::1, $(echo ${local_ipv6:-$host_ipv6} | sed 's/[[:space:]]\+/, /g')"
         add_ip6_route "$1"
     else
         nft add rule inet shellcrash $1 meta nfproto ipv6 return
