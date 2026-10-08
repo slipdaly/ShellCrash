@@ -190,7 +190,7 @@ for file in config.yaml.bak user.yaml proxies.yaml proxy-groups.yaml rules.yaml 
     mv -f "$CRASHDIR"/"$file" "$CRASHDIR"/yamls/"$file" 2>/dev/null
 done
 [ ! -L "$CRASHDIR"/config.yaml ] && mv -f "$CRASHDIR"/config.yaml "$CRASHDIR"/yamls/config.yaml 2>/dev/null
-for file in fake_ip_filter mac web_save servers_chs.list servers_en.list fake_ip_filter.list singbox_providers.list clash_providers.list; do
+for file in fake_ip_filter dns_bypass mac web_save servers_chs.list servers_en.list fake_ip_filter.list singbox_providers.list clash_providers.list; do
     mv -f "$CRASHDIR"/"$file" "$CRASHDIR"/configs/"$file" 2>/dev/null
 done
 #迁移任务状态文件到新目录

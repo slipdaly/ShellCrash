@@ -18,6 +18,7 @@ DNS_REDIR_PORT_DESC="Used for compatibility with third-party DNS services"
 
 DNS_FAKEIP_MENU="Manage Fake-IP Filter List"
 DNS_ADV_MENU="Configure DNS Servers"
+DNS_BYPASS_MENU="Manage DNS Hijack Bypass List"
 
 DNS_SET_OK="DNS mode has been set to"
 DNS_CORE_UNSUPPORTED="The current core does not support this feature."
@@ -35,6 +36,16 @@ DNS_FAKEIP_EXAMPLE="Examples:\na.b.com\n*.b.com\n*.*.b.com"
 DNS_FAKEIP_EXIST="Existing Fake-IP filter entries:"
 DNS_FAKEIP_EMPTY="No Fake-IP filter entries have been added"
 DNS_FAKEIP_EDIT="Enter a number to remove an entry, or enter an address to add one"
+
+#===== DNS Hijack Bypass =====
+DNS_BYPASS_DESC="TCP/UDP port 53 queries from listed devices bypass DNS hijacking; other traffic is still proxied normally"
+DNS_BYPASS_TIP="Prevents DNS loops when a downstream SmartDNS or AdGuard Home uses the ShellCrash router as its gateway"
+DNS_BYPASS_EXAMPLE="IPv4, IPv6, and CIDR are supported, for example:\n192.168.18.157\n192.168.18.0/24\nfd00::157"
+DNS_BYPASS_EXIST="Existing DNS hijack bypass entries:"
+DNS_BYPASS_EMPTY="No DNS hijack bypass entries have been added"
+DNS_BYPASS_EDIT="Enter a number to remove an entry, or enter an IP address or CIDR to add one"
+DNS_BYPASS_DUP="This entry already exists"
+DNS_BYPASS_INVALID="Invalid IP address or CIDR"
 
 #===== Advanced DNS =====
 DNS_ADV_SPLIT="Use '|' or ',' to separate multiple DNS addresses"

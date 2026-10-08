@@ -123,6 +123,16 @@ start_ipt_dns() { #iptables-dns通用工具
         "$1" $w -t nat -A "$3" -p tcp -s $bypass_host -j RETURN
         "$1" $w -t nat -A "$3" -p udp -s $bypass_host -j RETURN
     }
+    #DNS上游设备仅绕过53端口劫持，其它流量仍正常参与代理
+    [ "$2" = 'PREROUTING' ] && [ "$3" != 'shellcrash_vm_dns' ] && {
+        for ip in $dns_bypass; do
+            if [ "$1" = 'iptables' ] && ! printf '%s\n' "$ip" | grep -q ':'; then
+                "$1" $w -t nat -A "$3" -s "$ip" -j RETURN
+            elif [ "$1" = 'ip6tables' ] && printf '%s\n' "$ip" | grep -q ':'; then
+                "$1" $w -t nat -A "$3" -s "$ip" -j RETURN
+            fi
+        done
+    }
     #局域网mac地址黑名单过滤
     [ "$2" = 'PREROUTING' ] && [ "$macfilter_type" != "白名单" ] && {
         [ -s "$CRASHDIR"/configs/mac ] &&

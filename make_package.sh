@@ -9,7 +9,7 @@ set -e  # 遇到错误时退出
 check_commands() {
     local missing_cmds=()
     
-    for cmd in tar cp mktemp rm cd pwd; do
+    for cmd in tar cp mktemp rm cd pwd mkdir find dirname basename grep; do
         if ! command -v "$cmd" &> /dev/null; then
             missing_cmds+=("$cmd")
         fi
@@ -50,6 +50,9 @@ OUTPUT_FILE=""
 VERBOSE=false
 FORCE_UNIX=false
 
+# 定义源码根目录
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # 解析命令行参数
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -58,6 +61,10 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -o|--output)
+            if [ $# -lt 2 ] || [ -z "$2" ]; then
+                echo "错误: $1 需要指定输出文件路径" >&2
+                exit 1
+            fi
             OUTPUT_FILE="$2"
             shift 2
             ;;
@@ -82,8 +89,13 @@ if [ -z "$OUTPUT_FILE" ]; then
     OUTPUT_FILE="ShellCrash.tar.gz"
 fi
 
-# 为输出目录设置变量
-OUTPUT_DIR="$SRC_DIR"
+# 解析输出文件路径
+if [[ "$OUTPUT_FILE" = /* ]]; then
+    OUTPUT_PATH="$OUTPUT_FILE"
+else
+    OUTPUT_PATH="$SRC_DIR/$OUTPUT_FILE"
+fi
+OUTPUT_DIR="$(dirname "$OUTPUT_PATH")"
 
 # 日志函数
 log() {
@@ -111,18 +123,32 @@ convert_to_unix() {
     fi
 }
 
-echo "开始创建 $OUTPUT_FILE..."
+echo "开始创建 $OUTPUT_PATH..."
 
 # 检查必需的命令
 check_commands
+
+# 检查必须进入安装包的运行时文件
+REQUIRED_PACKAGE_FILES=(
+    "libs/dns_bypass.sh"
+)
+for required_file in "${REQUIRED_PACKAGE_FILES[@]}"; do
+    [ -f "$SRC_DIR/scripts/$required_file" ] || error_exit "缺少必需文件: scripts/$required_file"
+done
+
+# 确保输出目录存在
+mkdir -p "$OUTPUT_DIR" || error_exit "无法创建输出目录: $OUTPUT_DIR"
 
 # 创建临时目录
 TEMP_DIR=$(mktemp -d) || error_exit "无法创建临时目录"
 echo "使用临时目录: $TEMP_DIR"
 
-# 定义源码根目录
-SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 log "源码根目录: $SRC_DIR"
+
+cleanup() {
+    [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ] && rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT
 
 # 复制主要脚本文件
 log "复制主脚本文件..."
@@ -178,6 +204,11 @@ if [ -d "$SRC_DIR/scripts/libs" ]; then
 else
     echo "警告: scripts/libs 目录不存在"
 fi
+
+# 校验运行时依赖已复制到打包目录
+for required_file in "${REQUIRED_PACKAGE_FILES[@]}"; do
+    [ -f "$TEMP_DIR/$required_file" ] || error_exit "打包目录缺少 $required_file"
+done
 
 # 复制lang目录
 log "复制lang目录..."
@@ -239,18 +270,26 @@ cd "$TEMP_DIR"
 
 log "开始创建压缩包..."
 # 使用绝对路径确保目标文件位置正确
-tar zcvf "$SRC_DIR/$(basename "$OUTPUT_FILE")" *
+tar zcvf "$OUTPUT_PATH" *
+
+# 校验关键运行时依赖已进入压缩包
+tar -tzf "$OUTPUT_PATH" >"$TEMP_DIR/package_contents.list"
+for required_file in "${REQUIRED_PACKAGE_FILES[@]}"; do
+    grep -Fxq "$required_file" "$TEMP_DIR/package_contents.list" ||
+        error_exit "压缩包缺少 $required_file"
+done
 
 # 返回源码目录
 cd "$SRC_DIR"
 
 # 清理临时目录
-rm -rf "$TEMP_DIR"
+cleanup
+trap - EXIT
 
-echo "$OUTPUT_FILE 创建完成!"
-echo "文件位置: $SRC_DIR/$OUTPUT_FILE"
+echo "$(basename "$OUTPUT_PATH") 创建完成!"
+echo "文件位置: $OUTPUT_PATH"
 
 # 显示压缩包大小信息
 if command -v ls &> /dev/null; then
-    ls -lh "$SRC_DIR/$OUTPUT_FILE"
+    ls -lh "$OUTPUT_PATH"
 fi

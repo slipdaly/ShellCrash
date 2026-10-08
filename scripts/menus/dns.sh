@@ -5,6 +5,7 @@
 __IS_MODULE_DNS_LOADED=1
 
 load_lang dns
+. "$CRASHDIR"/libs/dns_bypass.sh
 
 # DNS 模式设置
 set_dns_mod() {
@@ -25,6 +26,7 @@ set_dns_mod() {
         [ "$dns_mod" = "mix" ] &&
             content_line "8) \033[33m$DNS_FAKEIP_MENU\033[0m"
         content_line "9) \033[36m$DNS_ADV_MENU\033[0m"
+        content_line "10) \033[33m$DNS_BYPASS_MENU\033[0m"
         content_line ""
         content_line "0) $COMMON_BACK"
         separator_line "="
@@ -116,6 +118,9 @@ set_dns_mod() {
         9)
             set_dns_adv
             ;;
+        10)
+            dns_bypass_filter
+            ;;
         *)
             errornum
             ;;
@@ -166,6 +171,59 @@ fake_ip_filter() {
                 else
                     break
                 fi
+            fi
+            ;;
+        esac
+    done
+}
+
+dns_bypass_filter() {
+    dns_bypass_file="$CRASHDIR/configs/dns_bypass"
+    touch "$dns_bypass_file"
+    while true; do
+        comp_box "\033[32m$DNS_BYPASS_DESC\033[0m" \
+            "\033[31m$DNS_BYPASS_TIP\033[0m" \
+            "\033[36m$DNS_BYPASS_EXAMPLE\033[0m"
+        if [ -s "$dns_bypass_file" ]; then
+            content_line "\033[33m$DNS_BYPASS_EXIST\033[0m"
+            content_line ""
+            awk '{print NR") "$1}' "$dns_bypass_file" |
+                while IFS= read -r line; do
+                    content_line "$line"
+                done
+        else
+            content_line "\033[33m$DNS_BYPASS_EMPTY\033[0m"
+        fi
+        btm_box "" \
+            "0) $COMMON_BACK"
+        read -r -p "$DNS_BYPASS_EDIT> " input
+        case "$input" in
+        "" | 0)
+            break
+            ;;
+        *)
+            if [ "$input" -ge 1 ] 2>/dev/null; then
+                dns_bypass_rows=$(awk 'END{print NR}' "$dns_bypass_file")
+                if [ "$input" -le "$dns_bypass_rows" ] && sed -i "${input}d" "$dns_bypass_file"; then
+                    msg_alert "\033[32m$DNS_REMOVE_OK\033[0m"
+                else
+                    msg_alert "\033[31m$DNS_REMOVE_FAIL\033[0m"
+                fi
+            elif is_dns_bypass_entry "$input"; then
+                if grep -Fxq "$input" "$dns_bypass_file"; then
+                    msg_alert "\033[31m$DNS_BYPASS_DUP\033[0m"
+                else
+                    comp_box "$DNS_CONFIRM_ADD\033[32m$input\033[0m"
+                    btm_box "1) $DNS_CONFIRM_OK" \
+                        "0) $COMMON_BACK"
+                    read -r -p "$COMMON_INPUT>" res
+                    if [ "$res" = 1 ]; then
+                        printf '%s\n' "$input" >>"$dns_bypass_file"
+                        msg_alert "\033[32m$DNS_ADD_OK\033[0m"
+                    fi
+                fi
+            else
+                msg_alert "\033[31m$DNS_BYPASS_INVALID\033[0m"
             fi
             ;;
         esac

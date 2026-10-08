@@ -121,6 +121,16 @@ start_nft_dns() { #nftables-dns
     [ "$firewall_area" = 5 ] && nft add rule inet shellcrash "$1"_dns ip saddr $bypass_host return
     nft add rule inet shellcrash "$1"_dns ip saddr != {$HOST_IP} return                              #屏蔽外部请求
     [ "$1" = 'prerouting' ] && nft add rule inet shellcrash "$1"_dns ip6 saddr != {$HOST_IP6} return #屏蔽外部请求
+    #DNS上游设备仅绕过53端口劫持，其它流量仍正常参与代理
+    [ "$1" = 'prerouting' ] && {
+        for ip in $dns_bypass; do
+            if printf '%s\n' "$ip" | grep -q ':'; then
+                nft add rule inet shellcrash "$1"_dns ip6 saddr "$ip" return
+            else
+                nft add rule inet shellcrash "$1"_dns ip saddr "$ip" return
+            fi
+        done
+    }
     #过滤局域网设备
     [ "$1" = 'prerouting' ] && [ -s "$CRASHDIR"/configs/mac ] && {
         MAC=$(awk '{printf "%s, ",$1}' "$CRASHDIR"/configs/mac)

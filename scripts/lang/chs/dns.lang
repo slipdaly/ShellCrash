@@ -18,6 +18,7 @@ DNS_REDIR_PORT_DESC="——用于兼容第三方DNS服务"
 
 DNS_FAKEIP_MENU="管理Fake-IP过滤列表"
 DNS_ADV_MENU="修改DNS服务器"
+DNS_BYPASS_MENU="管理DNS劫持绕过列表"
 
 DNS_SET_OK="DNS模式已设置为"
 DNS_CORE_UNSUPPORTED="当前内核不支持该功能！"
@@ -34,6 +35,16 @@ DNS_FAKEIP_EXAMPLE="示例格式如下：\na.b.com\n*.b.com\n*.*.b.com"
 DNS_FAKEIP_EXIST="已添加的Fake-IP过滤地址："
 DNS_FAKEIP_EMPTY="当前尚未添加任何自定义Fake-IP过滤地址"
 DNS_FAKEIP_EDIT="输入序号移除，输入地址添加"
+
+#=====DNS劫持绕过=====
+DNS_BYPASS_DESC="列表内设备发出的TCP/UDP 53查询不进行DNS劫持，其它流量仍正常参与代理"
+DNS_BYPASS_TIP="用于避免旁路SmartDNS、AdGuard Home等经ShellCrash网关查询上游时形成DNS环路"
+DNS_BYPASS_EXAMPLE="支持IPv4、IPv6地址或CIDR，例如：\n192.168.18.157\n192.168.18.0/24\nfd00::157"
+DNS_BYPASS_EXIST="已添加的DNS劫持绕过地址："
+DNS_BYPASS_EMPTY="当前尚未添加任何DNS劫持绕过地址"
+DNS_BYPASS_EDIT="输入序号移除，输入IP地址或CIDR添加"
+DNS_BYPASS_DUP="该地址已存在"
+DNS_BYPASS_INVALID="IP地址或CIDR格式无效"
 
 #=====DNS高级=====
 DNS_ADV_SPLIT="多个DNS地址请使用“|”或“,”分隔输入"

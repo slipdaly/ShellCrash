@@ -3,6 +3,8 @@
 
 #获取局域网host地址
 . "$CRASHDIR"/starts/fw_getlanip.sh && getlanip
+#DNS劫持绕过列表，仅影响列表内设备发出的TCP/UDP 53查询
+. "$CRASHDIR"/libs/dns_bypass.sh && load_dns_bypass
 #缺省值
 [ -z "$macfilter_type" ] && macfilter_type='黑名单'
 [ -z "$common_ports" ] && common_ports='ON'
