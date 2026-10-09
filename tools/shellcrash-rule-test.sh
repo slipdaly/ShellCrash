@@ -41,6 +41,10 @@ has_wget() {
     wget --help >/dev/null 2>&1 || wget --version >/dev/null 2>&1
 }
 
+has_wget_proxy_auth() {
+    wget --help 2>&1 | grep -q -- '--proxy-user'
+}
+
 has_jq() {
     jq --version >/dev/null 2>&1
 }
@@ -202,11 +206,7 @@ print_connection_match() {
 }
 
 run_test_request() {
-    if [ -n "$AUTH" ]; then
-        proxy_url="http://$AUTH@127.0.0.1:$MIXED_PORT"
-    else
-        proxy_url="http://127.0.0.1:$MIXED_PORT"
-    fi
+    proxy_url="http://127.0.0.1:$MIXED_PORT"
     rc=127
     if has_curl; then
         if [ -n "$AUTH" ]; then
@@ -223,9 +223,28 @@ run_test_request() {
         [ "$rc" = 2 ] || return "$rc"
     fi
     if has_wget; then
-        http_proxy="$proxy_url" \
-            https_proxy="$proxy_url" \
-            wget -q -T "$TIMEOUT" -O /dev/null "$TEST_URL"
+        if [ -n "$AUTH" ] && has_wget_proxy_auth; then
+            proxy_user=${AUTH%%:*}
+            proxy_pass=${AUTH#*:}
+            http_proxy="$proxy_url" \
+                https_proxy="$proxy_url" \
+                wget -q -T "$TIMEOUT" --proxy-user="$proxy_user" --proxy-password="$proxy_pass" \
+                -O /dev/null "$TEST_URL"
+        elif [ -n "$AUTH" ]; then
+            case "$AUTH" in
+            *[!-A-Za-z0-9._~:]*)
+                echo "wget fallback cannot safely pass proxy authentication" >&2
+                return 127
+                ;;
+            esac
+            http_proxy="http://$AUTH@127.0.0.1:$MIXED_PORT" \
+                https_proxy="http://$AUTH@127.0.0.1:$MIXED_PORT" \
+                wget -q -T "$TIMEOUT" -O /dev/null "$TEST_URL"
+        else
+            http_proxy="$proxy_url" \
+                https_proxy="$proxy_url" \
+                wget -q -T "$TIMEOUT" -O /dev/null "$TEST_URL"
+        fi
     else
         echo "curl or wget is required for mixed-port requests" >&2
         return 127
