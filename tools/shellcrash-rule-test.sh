@@ -23,6 +23,8 @@ Options:
 The script uses only read-only mihomo APIs. It first tries to read a live
 connection record, then falls back to rule hitCount differences. The fallback
 is best effort because other concurrent traffic can also increase hitCount.
+curl is preferred. wget is used for controller API calls when curl is missing;
+proxy requests can use wget only when mixed-port authentication is not enabled.
 EOF
 }
 
@@ -31,8 +33,16 @@ die() {
     exit 1
 }
 
-have() {
-    command -v "$1" >/dev/null 2>&1
+has_curl() {
+    curl --version >/dev/null 2>&1 || curl -V >/dev/null 2>&1 || curl --help >/dev/null 2>&1
+}
+
+has_wget() {
+    wget --help >/dev/null 2>&1 || wget --version >/dev/null 2>&1
+}
+
+has_jq() {
+    jq --version >/dev/null 2>&1
 }
 
 strip_quotes() {
@@ -105,10 +115,20 @@ normalize_controller() {
 
 api_get() {
     path=$1
-    if [ -n "$SECRET" ]; then
-        curl -fsS -H "Authorization: Bearer $SECRET" "$API$path"
+    if has_curl; then
+        if [ -n "$SECRET" ]; then
+            curl -fsS -H "Authorization: Bearer $SECRET" "$API$path"
+        else
+            curl -fsS "$API$path"
+        fi
+    elif has_wget; then
+        if [ -n "$SECRET" ]; then
+            wget -q -O - --header="Authorization: Bearer $SECRET" "$API$path"
+        else
+            wget -q -O - "$API$path"
+        fi
     else
-        curl -fsS "$API$path"
+        return 127
     fi
 }
 
@@ -148,7 +168,7 @@ json_string_field() {
 
 print_connection_match() {
     file=$1
-    if have jq; then
+    if has_jq; then
         jq -r --arg host "$DOMAIN" '
             .connections[]
             | select(.metadata.host == $host or .metadata.remoteDestination == $host or .metadata.destinationIP == $host)
@@ -177,14 +197,23 @@ print_connection_match() {
 }
 
 run_test_request() {
-    if [ -n "$AUTH" ]; then
-        curl -k -L -sS --connect-timeout 5 --max-time "$TIMEOUT" \
-            --proxy-user "$AUTH" -x "http://127.0.0.1:$MIXED_PORT" \
-            -o /dev/null "$TEST_URL"
+    if has_curl; then
+        if [ -n "$AUTH" ]; then
+            curl -k -L -sS -m "$TIMEOUT" -U "$AUTH" \
+                -x "http://127.0.0.1:$MIXED_PORT" \
+                -o /dev/null "$TEST_URL"
+        else
+            curl -k -L -sS -m "$TIMEOUT" \
+                -x "http://127.0.0.1:$MIXED_PORT" \
+                -o /dev/null "$TEST_URL"
+        fi
+    elif has_wget && [ -z "$AUTH" ]; then
+        http_proxy="http://127.0.0.1:$MIXED_PORT" \
+            https_proxy="http://127.0.0.1:$MIXED_PORT" \
+            wget -q -T "$TIMEOUT" -O /dev/null "$TEST_URL"
     else
-        curl -k -L -sS --connect-timeout 5 --max-time "$TIMEOUT" \
-            -x "http://127.0.0.1:$MIXED_PORT" \
-            -o /dev/null "$TEST_URL"
+        echo "curl is required for authenticated mixed-port requests" >&2
+        return 127
     fi
 }
 
@@ -258,7 +287,7 @@ done
     exit 1
 }
 
-have curl || die "curl is required"
+has_curl || has_wget || die "curl or wget is required"
 
 if [ -z "$CONFIG" ]; then
     detect_config || true
