@@ -23,8 +23,8 @@ Options:
 The script uses only read-only mihomo APIs. It first tries to read a live
 connection record, then falls back to rule hitCount differences. The fallback
 is best effort because other concurrent traffic can also increase hitCount.
-curl is preferred. wget is used for controller API calls when curl is missing;
-proxy requests can use wget only when mixed-port authentication is not enabled.
+curl is preferred. wget is used as a best-effort fallback when curl is missing
+or when a trimmed curl build rejects the required options.
 EOF
 }
 
@@ -115,13 +115,18 @@ normalize_controller() {
 
 api_get() {
     path=$1
+    rc=127
     if has_curl; then
         if [ -n "$SECRET" ]; then
             curl -fsS -H "Authorization: Bearer $SECRET" "$API$path"
+            rc=$?
         else
             curl -fsS "$API$path"
+            rc=$?
         fi
-    elif has_wget; then
+        [ "$rc" = 2 ] || return "$rc"
+    fi
+    if has_wget; then
         if [ -n "$SECRET" ]; then
             wget -q -O - --header="Authorization: Bearer $SECRET" "$API$path"
         else
@@ -197,22 +202,32 @@ print_connection_match() {
 }
 
 run_test_request() {
+    if [ -n "$AUTH" ]; then
+        proxy_url="http://$AUTH@127.0.0.1:$MIXED_PORT"
+    else
+        proxy_url="http://127.0.0.1:$MIXED_PORT"
+    fi
+    rc=127
     if has_curl; then
         if [ -n "$AUTH" ]; then
             curl -k -L -sS -m "$TIMEOUT" -U "$AUTH" \
                 -x "http://127.0.0.1:$MIXED_PORT" \
                 -o /dev/null "$TEST_URL"
+            rc=$?
         else
             curl -k -L -sS -m "$TIMEOUT" \
                 -x "http://127.0.0.1:$MIXED_PORT" \
                 -o /dev/null "$TEST_URL"
+            rc=$?
         fi
-    elif has_wget && [ -z "$AUTH" ]; then
-        http_proxy="http://127.0.0.1:$MIXED_PORT" \
-            https_proxy="http://127.0.0.1:$MIXED_PORT" \
+        [ "$rc" = 2 ] || return "$rc"
+    fi
+    if has_wget; then
+        http_proxy="$proxy_url" \
+            https_proxy="$proxy_url" \
             wget -q -T "$TIMEOUT" -O /dev/null "$TEST_URL"
     else
-        echo "curl is required for authenticated mixed-port requests" >&2
+        echo "curl or wget is required for mixed-port requests" >&2
         return 127
     fi
 }
