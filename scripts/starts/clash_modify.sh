@@ -180,6 +180,104 @@ split_and_customize_yaml_parts() {
     }
 }
 
+append_node_bypass_host() {
+    node_host="$1"
+    case "$node_host" in
+        *:*)
+            echo " - IP-CIDR6,$node_host/128,DIRECT,no-resolve #节点绕过"
+            ;;
+        *)
+            if echo "$node_host" | grep -qE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'; then
+                echo " - IP-CIDR,$node_host/32,DIRECT,no-resolve #节点绕过"
+            elif echo "$node_host" | grep -q '\.'; then
+                echo " - DOMAIN,$node_host,DIRECT #节点绕过"
+            fi
+            ;;
+    esac
+}
+
+append_node_bypass_rules() {
+    [ -s "$1" ] || return
+    node_source="$1"
+    if grep -q '^proxies:[[:space:]]*$' "$1"; then
+        node_source="$TMPDIR"/node_bypass_source
+        awk '
+            /^proxies:[[:space:]]*$/ { in_proxies=1; next }
+            in_proxies && /^[a-zA-Z0-9_-]+:/ { exit }
+            in_proxies { print }
+        ' "$1" >"$node_source"
+    fi
+    awk '
+        function trim(value) {
+            gsub(/^[ \t]+|[ \t]+$/, "", value)
+            gsub(/^["\047]|["\047]$/, "", value)
+            return value
+        }
+        /(^|[,{ \t])server[ \t]*:/ {
+            value=$0
+            sub(/^.*server[ \t]*:[ \t]*/, "", value)
+            sub(/[},].*$/, "", value)
+            sub(/[ \t]+#.*/, "", value)
+            value=trim(value)
+            if (value ~ /^\[/) {
+                sub(/^\[/, "", value)
+                sub(/\].*$/, "", value)
+            } else if (value !~ /^[0-9A-Fa-f:]+$/ || value !~ /:/) {
+                sub(/:[0-9]+$/, "", value)
+            }
+            if (value != "") print value
+        }
+    ' "$node_source" | sed 's/\r$//' | awk '!a[$0]++' | while read -r node_host; do
+        append_node_bypass_host "$node_host"
+    done >>"$TMPDIR"/proxies_bypass
+    awk '
+        /(^|[ \t])-?[a-zA-Z0-9]+:\/\/[^ \t]+/ {
+            value=$0
+            sub(/^[ \t-]*/, "", value)
+            sub(/^[^:]+:\/\//, "", value)
+            count=split(value, parts, "@")
+            if (count > 1) value=parts[count]
+            sub(/[?#\/].*$/, "", value)
+            if (value ~ /^\[/) {
+                sub(/^\[/, "", value)
+                sub(/\].*$/, "", value)
+            } else if (value !~ /^[0-9A-Fa-f:]+$/ || value !~ /:/) {
+                sub(/:[0-9]+$/, "", value)
+            }
+            if (value != "") print value
+        }
+    ' "$node_source" | sed 's/\r$//' | awk '!a[$0]++' | while read -r node_host; do
+        append_node_bypass_host "$node_host"
+    done >>"$TMPDIR"/proxies_bypass
+    [ "$node_source" = "$TMPDIR"/node_bypass_source ] && rm -f "$node_source"
+}
+
+valid_node_provider() {
+    [ -s "$1" ] &&
+        grep -qE '://|^[[:space:]]*(proxies|proxy-groups|proxy-providers):|(^|[,{[:space:]])server[[:space:]]*:' "$1"
+}
+
+decode_node_provider() {
+    provider_file="$1"
+    provider_decoded="$TMPDIR"/node_bypass_provider
+    : >"$provider_decoded"
+    if ckcmd base64; then
+        base64 -d "$provider_file" >"$provider_decoded" 2>/dev/null ||
+            base64 --decode "$provider_file" >"$provider_decoded" 2>/dev/null ||
+            base64 -D "$provider_file" >"$provider_decoded" 2>/dev/null
+        valid_node_provider "$provider_decoded" || : >"$provider_decoded"
+    fi
+    if [ ! -s "$provider_decoded" ] && ckcmd openssl; then
+        openssl base64 -d -A -in "$provider_file" -out "$provider_decoded" 2>/dev/null
+        valid_node_provider "$provider_decoded" || : >"$provider_decoded"
+    fi
+    if [ ! -s "$provider_decoded" ] && ckcmd busybox && busybox base64 --help >/dev/null 2>&1; then
+        busybox base64 -d "$provider_file" >"$provider_decoded" 2>/dev/null
+        valid_node_provider "$provider_decoded" || : >"$provider_decoded"
+    fi
+    valid_node_provider "$provider_decoded"
+}
+
 add_custom_inbounds_and_rules() {
     #添加自定义入站
     [ "$vms_service" = ON ] || [ "$sss_service" = ON ] && {
@@ -189,10 +287,39 @@ add_custom_inbounds_and_rules() {
     #节点绕过功能支持
     sed -i "/#节点绕过/d" "$TMPDIR"/rules.yaml
     [ "$proxies_bypass" = "ON" ] && {
-        cat "$TMPDIR"/proxies.yaml | sed '/^proxy-/,$d' | sed '/^rule-/,$d' | grep -v '^\s*#' | grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | awk '!a[$0]++' | sed 's/^/\ -\ IP-CIDR,/g' | sed 's|$|/32,DIRECT,no-resolve #节点绕过|g' >>"$TMPDIR"/proxies_bypass
-        cat "$TMPDIR"/proxies.yaml | sed '/^proxy-/,$d' | sed '/^rule-/,$d' | grep -v '^\s*#' | grep -vE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | grep -oE '[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+\.?' | awk '!a[$0]++' | sed 's/^/\ -\ DOMAIN,/g' | sed 's/$/,DIRECT #节点绕过/g' >>"$TMPDIR"/proxies_bypass
+        : >"$TMPDIR"/proxies_bypass
+        append_node_bypass_rules "$TMPDIR"/proxies.yaml
+        provider_cache_missing=0
+        provider_parse_failed=0
+        provider_paths=$(awk '/^[[:space:]]*path:/ {
+            sub(/^[[:space:]]*path:[[:space:]]*/, "")
+            sub(/[[:space:]]+#.*$/, "")
+            gsub(/"/, "")
+            print
+        }' "$TMPDIR"/proxy-providers.yaml 2>/dev/null | tr -d "'")
+        for provider_path in $provider_paths; do
+            case "$provider_path" in
+                ./*) provider_file="$BINDIR/${provider_path#./}" ;;
+                /*) provider_file="$provider_path" ;;
+                *) provider_file="$BINDIR/$provider_path" ;;
+            esac
+            if [ ! -f "$provider_file" ]; then
+                provider_cache_missing=$((provider_cache_missing + 1))
+            elif valid_node_provider "$provider_file"; then
+                append_node_bypass_rules "$provider_file"
+            elif decode_node_provider "$provider_file"; then
+                append_node_bypass_rules "$TMPDIR"/node_bypass_provider
+            else
+                provider_parse_failed=$((provider_parse_failed + 1))
+            fi
+        done
         cat "$TMPDIR"/rules.yaml >>"$TMPDIR"/proxies_bypass
         mv -f "$TMPDIR"/proxies_bypass "$TMPDIR"/rules.yaml
+        [ "$provider_cache_missing" -gt 0 ] &&
+            logger "节点绕过已开启，但 provider 缓存尚未生成，暂时无法提取节点地址！" 33
+        [ "$provider_parse_failed" -gt 0 ] &&
+            logger "节点绕过已开启，但有 provider 缓存无法解析，请检查 provider 文件和解码工具！" 33
+        rm -f "$TMPDIR"/node_bypass_provider
     }
     #插入自定义规则
     sed -i "/#自定义规则/d" "$TMPDIR"/rules.yaml
