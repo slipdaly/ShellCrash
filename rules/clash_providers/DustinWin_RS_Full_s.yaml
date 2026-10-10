@@ -59,6 +59,14 @@ rule-providers:
     url: "https://raw.githubusercontent.com/slipdaly/ShellCrash/master/rules/dnsd.mrs"
     interval: 86400
 
+  cloudflareP:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/slipdaly/ShellCrash/master/rules/cloudflareP.mrs"
+    format: mrs
+    path: ./ruleset/cloudflareP.mrs
+    interval: 86400
+
   cloudflare:
     type: http
     behavior: domain
@@ -222,6 +230,7 @@ rule-providers:
 rules:
   - RULE-SET,private,🔒 私有网络
   - RULE-SET,dnsD,🔐 DoHDoT
+  - RULE-SET,cloudflareP,🌎 国外域名
   - RULE-SET,ads,🛑 广告域名
   - RULE-SET,directcus,🎯 本地直连
   - RULE-SET,github,💻 Github
