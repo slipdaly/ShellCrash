@@ -40,12 +40,12 @@ DNS_FAKEIP_EDIT="Enter a number to remove an entry, or enter an address to add o
 #===== DNS Hijack Bypass =====
 DNS_BYPASS_DESC="TCP/UDP port 53 queries from listed devices bypass DNS hijacking; other traffic is still proxied normally"
 DNS_BYPASS_TIP="Prevents DNS loops when a downstream SmartDNS or AdGuard Home uses the ShellCrash router as its gateway"
-DNS_BYPASS_EXAMPLE="IPv4, IPv6, and CIDR are supported, for example:\n192.168.18.157\n192.168.18.0/24\nfd00::157"
+DNS_BYPASS_EXAMPLE="IPv4, IPv6, numeric CIDR prefixes, and IPv6 suffix masks are supported, for example:\n192.168.18.157\n192.168.18.0/24\nfd00::157\nfd00::/64\n::157/::ffff:ffff:ffff:ffff"
 DNS_BYPASS_EXIST="Existing DNS hijack bypass entries:"
 DNS_BYPASS_EMPTY="No DNS hijack bypass entries have been added"
 DNS_BYPASS_EDIT="Enter a number to remove an entry, or enter an IP address or CIDR to add one"
 DNS_BYPASS_DUP="This entry already exists"
-DNS_BYPASS_INVALID="Invalid IP address or CIDR"
+DNS_BYPASS_INVALID="Invalid IP address or CIDR. IPv6 masks must be contiguous, and suffix values must fit the mask"
 
 #===== Advanced DNS =====
 DNS_ADV_SPLIT="Use '|' or ',' to separate multiple DNS addresses"

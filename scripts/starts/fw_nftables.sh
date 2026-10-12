@@ -124,7 +124,9 @@ start_nft_dns() { #nftables-dns
     #DNS上游设备仅绕过53端口劫持，其它流量仍正常参与代理
     [ "$1" = 'prerouting' ] && {
         for ip in $dns_bypass; do
-            if printf '%s\n' "$ip" | grep -q ':'; then
+            if is_dns_bypass_ipv6_suffix "$ip"; then
+                nft add rule inet shellcrash "$1"_dns ip6 saddr "&" "${ip#*/}" "==" "${ip%/*}" return
+            elif printf '%s\n' "$ip" | grep -q ':'; then
                 nft add rule inet shellcrash "$1"_dns ip6 saddr "$ip" return
             else
                 nft add rule inet shellcrash "$1"_dns ip saddr "$ip" return

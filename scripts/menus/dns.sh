@@ -209,16 +209,16 @@ dns_bypass_filter() {
                 else
                     msg_alert "\033[31m$DNS_REMOVE_FAIL\033[0m"
                 fi
-            elif is_dns_bypass_entry "$input"; then
-                if grep -Fxq "$input" "$dns_bypass_file"; then
+            elif dns_bypass_entry=$(normalize_dns_bypass_entry "$input"); then
+                if grep -Fxq "$dns_bypass_entry" "$dns_bypass_file"; then
                     msg_alert "\033[31m$DNS_BYPASS_DUP\033[0m"
                 else
-                    comp_box "$DNS_CONFIRM_ADD\033[32m$input\033[0m"
+                    comp_box "$DNS_CONFIRM_ADD\033[32m$dns_bypass_entry\033[0m"
                     btm_box "1) $DNS_CONFIRM_OK" \
                         "0) $COMMON_BACK"
                     read -r -p "$COMMON_INPUT>" res
                     if [ "$res" = 1 ]; then
-                        printf '%s\n' "$input" >>"$dns_bypass_file"
+                        printf '%s\n' "$dns_bypass_entry" >>"$dns_bypass_file"
                         msg_alert "\033[32m$DNS_ADD_OK\033[0m"
                     fi
                 fi
