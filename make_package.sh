@@ -152,15 +152,13 @@ trap cleanup EXIT
 
 # 复制主要脚本文件
 log "复制主脚本文件..."
-cp -f "$SRC_DIR/scripts/init.sh" "$TEMP_DIR/" || error_exit "无法复制 init.sh"
-cp -f "$SRC_DIR/scripts/menu.sh" "$TEMP_DIR/" || error_exit "无法复制 menu.sh"
-cp -f "$SRC_DIR/scripts/start.sh" "$TEMP_DIR/" || error_exit "无法复制 start.sh"
+for script_file in "$SRC_DIR/scripts/"*.sh; do
+    cp -f "$script_file" "$TEMP_DIR/" || error_exit "无法复制 $(basename "$script_file")"
+    convert_to_unix "$TEMP_DIR/$(basename "$script_file")"
+done
 cp -f "$SRC_DIR/version" "$TEMP_DIR/" || error_exit "无法复制 version"
 
 # 转换主脚本文件为Unix格式
-convert_to_unix "$TEMP_DIR/init.sh"
-convert_to_unix "$TEMP_DIR/menu.sh"
-convert_to_unix "$TEMP_DIR/start.sh"
 convert_to_unix "$TEMP_DIR/version"
 
 # 复制配置文件（如果存在）
@@ -278,6 +276,11 @@ for required_file in "${REQUIRED_PACKAGE_FILES[@]}"; do
     grep -Fxq "$required_file" "$TEMP_DIR/package_contents.list" ||
         error_exit "压缩包缺少 $required_file"
 done
+while IFS= read -r -d '' source_file; do
+    relative_file="${source_file#"$SRC_DIR/scripts/"}"
+    grep -Fxq "$relative_file" "$TEMP_DIR/package_contents.list" ||
+        error_exit "压缩包缺少 scripts/$relative_file"
+done < <(find "$SRC_DIR/scripts" -type f -print0)
 
 # 返回源码目录
 cd "$SRC_DIR"
